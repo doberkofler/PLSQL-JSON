@@ -1,0 +1,4 @@
+v0.0.1:
+  date: 2013-09-24
+  changes:
+    - Initial release of plsql_json.
