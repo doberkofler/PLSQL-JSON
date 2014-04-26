@@ -8,18 +8,15 @@ PACKAGE json_parser IS
 --
 --
 
-
 -----------
 --  EXAMPLE
 --
 --
 
-
 -------------
 --  RESOURCES
 --
 --
-
 
 ----------------------------------------------------------
 --	GLOBAL PUBLIC TYPES
@@ -38,12 +35,9 @@ TYPE rToken IS RECORD
 TYPE lTokens IS TABLE OF rToken INDEX BY PLS_INTEGER;
 TYPE json_src IS RECORD (len NUMBER, offset NUMBER, src VARCHAR2(32767), s_clob CLOB);
 
-
-
 ----------------------------------------------------------
 --	GLOBAL PUBLIC CONSTANTS
 ----------------------------------------------------------
-
 
 ---------------------------------------------------------
 --	GLOBAL VARIABLES
@@ -55,11 +49,9 @@ json_strict BOOLEAN NOT NULL := FALSE;
 --	GLOBAL PUBLIC MODULES
 ----------------------------------------------------------
 
-
 FUNCTION parser(str CLOB) RETURN json_nodes;
 FUNCTION parse_list(str CLOB) RETURN json_nodes;
 FUNCTION parse_any(str CLOB) RETURN json_nodes;
-
 
 END json_parser;
 /

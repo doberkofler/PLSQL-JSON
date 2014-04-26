@@ -56,3 +56,10 @@ SELECT 'Successful unit tests: '||C "Unit test results" FROM (SELECT COUNT(*) C 
 UNION
 SELECT 'Failed unit tests: '||C "Unit test results" FROM (SELECT COUNT(*) C FROM plsql_json.UT_test_table WHERE Success = 'N')
 ORDER BY 1 DESC;
+
+-- cleanup
+whenever sqlerror continue
+DROP TABLE UT_test_table;
+DROP SEQUENCE UT_test_seq;
+DROP PACKAGE json_ut;
+whenever sqlerror exit 1

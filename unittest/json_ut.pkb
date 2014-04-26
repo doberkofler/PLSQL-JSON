@@ -5,17 +5,13 @@ PACKAGE BODY json_UT IS
 --	PRIVATE TYPES
 ----------------------------------------------------------
 
-
 ----------------------------------------------------------
 --	LOCAL MODULES
 ----------------------------------------------------------
 
-
-
 ----------------------------------------------------------
 --	GLOBAL MODULES
 ----------------------------------------------------------
-
 
 ----------------------------------------------------------
 --	UT_escape (private)
@@ -76,6 +72,7 @@ IS
 		UT_util.eq(theTitle=>'#'||theNodeID||'(name)',		theExpected=>theName,	theComputed=>theNodes(theNodeID).nam, theNullOK=>TRUE);
 		UT_util.eq(theTitle=>'#'||theNodeID||'(string)',	theExpected=>theString,	theComputed=>theNodes(theNodeID).str, theNullOK=>TRUE);
 		UT_util.eq(theTitle=>'#'||theNodeID||'(number)',	theExpected=>theNumber,	theComputed=>theNodes(theNodeID).num, theNullOK=>TRUE);
+		UT_util.eq(theTitle=>'#'||theNodeID||'(date)',		theExpected=>NULL,		theComputed=>theNodes(theNodeID).dat, theNullOK=>TRUE);
 		UT_util.eq(theTitle=>'#'||theNodeID||'(parent)',	theExpected=>theParent,	theComputed=>theNodes(theNodeID).par, theNullOK=>TRUE);
 		UT_util.eq(theTitle=>'#'||theNodeID||'(next)',		theExpected=>theNext,	theComputed=>theNodes(theNodeID).nex, theNullOK=>TRUE);
 		UT_util.eq(theTitle=>'#'||theNodeID||'(sub)',		theExpected=>theSub,	theComputed=>theNodes(theNodeID).sub, theNullOK=>TRUE);
@@ -138,10 +135,12 @@ END UT_Nodes;
 --
 PROCEDURE UT_getter
 IS
-	aObject			json_object	:=	json_object();
-	aSubObject		json_object	:=	json_object();
-	aArray			json_array	:=	json_array();
-	aSubArray		json_array	:=	json_array();
+	aObject						json_object	:=	json_object();
+	aSubObject					json_object	:=	json_object();
+	aArray						json_array	:=	json_array();
+	aSubArray					json_array	:=	json_array();
+
+	CURRENT_DATE	CONSTANT	DATE		:=	SYSDATE;
 
 	PROCEDURE testString(theDate IN json_value, theTitle IN VARCHAR2, theValue IN VARCHAR2)
 	IS
@@ -150,6 +149,7 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_null)',		theExpected=>FALSE,		theComputed=>theDate.is_null(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_string)',	theExpected=>TRUE,		theComputed=>theDate.is_string(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_number)',	theExpected=>FALSE,		theComputed=>theDate.is_number(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_date)',		theExpected=>FALSE,		theComputed=>theDate.is_date(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_bool)',		theExpected=>FALSE,		theComputed=>theDate.is_bool(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>FALSE,		theComputed=>theDate.is_object(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
@@ -165,6 +165,7 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_null)',		theExpected=>FALSE,		theComputed=>theDate.is_null(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_string)',	theExpected=>FALSE,		theComputed=>theDate.is_string(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_number)',	theExpected=>TRUE,		theComputed=>theDate.is_number(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_date)',		theExpected=>FALSE,		theComputed=>theDate.is_date(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_bool)',		theExpected=>FALSE,		theComputed=>theDate.is_bool(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>FALSE,		theComputed=>theDate.is_object(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
@@ -173,6 +174,22 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'N',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
 	END testNumber;
 
+	PROCEDURE testDate(theDate IN json_value, theTitle IN VARCHAR2, theValue IN DATE)
+	IS
+	BEGIN
+		UT_util.eq(theTitle=>theTitle||'(get_type)',	theExpected=>'DATE',	theComputed=>theDate.get_type(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_null)',		theExpected=>FALSE,		theComputed=>theDate.is_null(),		theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_string)',	theExpected=>FALSE,		theComputed=>theDate.is_string(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_number)',	theExpected=>FALSE,		theComputed=>theDate.is_number(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_date)',		theExpected=>TRUE,		theComputed=>theDate.is_date(),		theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_bool)',		theExpected=>FALSE,		theComputed=>theDate.is_bool(),		theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>FALSE,		theComputed=>theDate.is_object(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(get_date)',	theExpected=>theValue,	theComputed=>theDate.get_date(),	theNullOK=>TRUE);
+		UT_util.eq(theTitle=>theTitle||'(COUNT)',		theExpected=>1,			theComputed=>theDate.nodes.COUNT,	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'D',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
+	END testDate;
+
 	PROCEDURE testBool(theDate IN json_value, theTitle IN VARCHAR2, theValue IN BOOLEAN)
 	IS
 	BEGIN
@@ -180,6 +197,7 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_null)',		theExpected=>FALSE,		theComputed=>theDate.is_null(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_string)',	theExpected=>FALSE,		theComputed=>theDate.is_string(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_number)',	theExpected=>FALSE,		theComputed=>theDate.is_number(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_date)',		theExpected=>FALSE,		theComputed=>theDate.is_date(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_bool)',		theExpected=>TRUE,		theComputed=>theDate.is_bool(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>FALSE,		theComputed=>theDate.is_object(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
@@ -195,6 +213,7 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_null)',		theExpected=>TRUE,		theComputed=>theDate.is_null(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_string)',	theExpected=>FALSE,		theComputed=>theDate.is_string(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_number)',	theExpected=>FALSE,		theComputed=>theDate.is_number(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_date)',		theExpected=>FALSE,		theComputed=>theDate.is_date(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_bool)',		theExpected=>FALSE,		theComputed=>theDate.is_bool(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>FALSE,		theComputed=>theDate.is_object(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
@@ -211,6 +230,7 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_null)',		theExpected=>FALSE,		theComputed=>theDate.is_null(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_string)',	theExpected=>FALSE,		theComputed=>theDate.is_string(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_number)',	theExpected=>FALSE,		theComputed=>theDate.is_number(),	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(is_date)',		theExpected=>FALSE,		theComputed=>theDate.is_date(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_bool)',		theExpected=>FALSE,		theComputed=>theDate.is_bool(),		theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>isObject,	theComputed=>theDate.is_object(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>isArray,	theComputed=>theDate.is_array(),	theNullOK=>FALSE);
@@ -224,8 +244,9 @@ BEGIN
 	aObject.put('p3', '');
 	aObject.put('p4', -0.4711);
 	aObject.put('p5', 0);
-	aObject.put('p6', TRUE);
-	aObject.put('p7', FALSE);
+	aObject.put('p6', CURRENT_DATE);
+	aObject.put('p7', TRUE);
+	aObject.put('p8', FALSE);
 	
 	--	validate
 	json_utils.validate(aObject.nodes);
@@ -236,8 +257,9 @@ BEGIN
 	testString(	aObject.get('p3'),		'p3',		'');
 	testNumber(	aObject.get('p4'),		'p4',		-0.4711);
 	testNumber(	aObject.get('p5'),		'p5',		0);
-	testBool(	aObject.get('p6'),		'p6',		TRUE);
-	testBool(	aObject.get('p7'),		'p7',		FALSE);
+	testDate(	aObject.get('p6'),		'p6',		CURRENT_DATE);
+	testBool(	aObject.get('p7'),		'p7',		TRUE);
+	testBool(	aObject.get('p8'),		'p8',		FALSE);
 
 	UT_util.module('UT_getter(array)');
 
@@ -247,6 +269,7 @@ BEGIN
 	aArray.append('');
 	aArray.append(-0.4711);
 	aArray.append(0);
+	aArray.append(CURRENT_DATE);
 	aArray.append(TRUE);
 	aArray.append(FALSE);
 
@@ -259,8 +282,9 @@ BEGIN
 	testString(	aArray.get(3),		'3',		'');
 	testNumber(	aArray.get(4),		'4',		-0.4711);
 	testNumber(	aArray.get(5),		'5',		0);
-	testBool(	aArray.get(6),		'6',		TRUE);
-	testBool(	aArray.get(7),		'7',		FALSE);
+	testDate(	aArray.get(6),		'6',		CURRENT_DATE);
+	testBool(	aArray.get(7),		'7',		TRUE);
+	testBool(	aArray.get(8),		'8',		FALSE);
 
 	UT_util.module('UT_getter(nested objects)');
 
@@ -294,6 +318,7 @@ IS
 	aObject2		json_object	:=	json_object();
 	aArray			json_array	:=	json_array();
 	aNumber			NUMBER;
+	aDate			DATE;
 	aBoolean		BOOLEAN;
 
 	aLob			CLOB		:=	empty_clob();
@@ -320,40 +345,44 @@ BEGIN
 	aObject.put(theName=>'p5',	theValue=>-1);
 	aObject.put(theName=>'p6',	theValue=>+2);
 	aObject.put(theName=>'p7',	theValue=>.14);
-	aObject.put(theName=>'p8',	theValue=>FALSE);
-	aObject.put(theName=>'p9',	theValue=>TRUE);
+	aObject.put(theName=>'p8',	theValue=>TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS'));
+	aObject.put(theName=>'p9',	theValue=>FALSE);
+	aObject.put(theName=>'p10',	theValue=>TRUE);
 	json_utils.validate(aObject.nodes);
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'constants',
 					theComputed	=>	aLob,
-					theExpected	=>	'{"p1":null,"p2":"string","p3":"","p4":0,"p5":-1,"p6":2,"p7":0.14,"p8":false,"p9":true}',
+					theExpected	=>	'{"p1":null,"p2":"string","p3":"","p4":0,"p5":-1,"p6":2,"p7":0.14,"p8":"2014-11-11T11:12:13.000Z","p9":false,"p10":true}',
 					theNullOK	=>	FALSE
 					);
 
 	-- put variables to an object
 	aObject := json_object();
 	aObject.put(theName=>'p1', theValue=>aNumber);
-	aObject.put(theName=>'p2', theValue=>aBoolean);
+	aObject.put(theName=>'p2', theValue=>aDate);
+	aObject.put(theName=>'p3', theValue=>aBoolean);
 	aNumber := 0;
+	aDate := TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS');
 	aBoolean := FALSE;
-	aObject.put(theName=>'p3', theValue=>aNumber);
-	aObject.put(theName=>'p4', theValue=>aBoolean);
+	aObject.put(theName=>'p4', theValue=>aNumber);
+	aObject.put(theName=>'p5', theValue=>aDate);
+	aObject.put(theName=>'p6', theValue=>aBoolean);
 	json_utils.validate(aObject.nodes);
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'variables',
 					theComputed	=>	aLob,
-					theExpected	=>	'{"p1":null,"p2":null,"p3":0,"p4":false}',
+					theExpected	=>	'{"p1":null,"p2":null,"p3":null,"p4":0,"p5":"2014-11-11T11:12:13.000Z","p6":false}',
 					theNullOK	=>	FALSE
 					);
 
 	-- do not empty the objects adds parameter and creates an invalid JSON object
 	-- (please note that is is done on purpose)
-	aObject.put(theName=>'p4', theValue=>'v4');
+	aObject.put(theName=>'p6', theValue=>'v6');
 	json_utils.validate(aObject.nodes);
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'add',
 					theComputed	=>	aLob,
-					theExpected	=>	'{"p1":null,"p2":null,"p3":0,"p4":false,"p4":"v4"}',
+					theExpected	=>	'{"p1":null,"p2":null,"p3":null,"p4":0,"p5":"2014-11-11T11:12:13.000Z","p6":false,"p6":"v6"}',
 					theNullOK	=>	FALSE
 					);
 
@@ -430,13 +459,14 @@ BEGIN
 	aArray.append();
 	aArray.append('string');
 	aArray.append(47.11);
+	aArray.append(TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS'));
 	aArray.append(FALSE);
 	aArray.append(aObject);
 	json_utils.validate(aArray.nodes);
 	aArray.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'values',
 					theComputed	=>	aLob,
-					theExpected	=>	'[null,"string",47.11,false,{}]',
+					theExpected	=>	'[null,"string",47.11,"2014-11-11T11:12:13.000Z",false,{}]',
 					theNullOK	=>	FALSE
 					);
 
@@ -972,8 +1002,9 @@ BEGIN
 	--	create object
 	aObject.put('p1', 'v1');
 	aObject.put('p2', 47.11);
-	aObject.put('p3', TRUE);
-	aObject.put('p4');
+	aObject.put('p3', SYSDATE);
+	aObject.put('p4', TRUE);
+	aObject.put('p5');
 	json_utils.validate(aObject.nodes);
 	json_debug.output(aObject.nodes);
 
@@ -1002,6 +1033,23 @@ BEGIN
 	UT_Debug;
 END run;
 
+----------------------------------------------------------
+--	Prepare unit test
+--
+PROCEDURE prepare
+IS
+BEGIN
+	NULL;
+END prepare;
+
+----------------------------------------------------------
+--	Cleanup unit test
+--
+PROCEDURE cleanup
+IS
+BEGIN
+	NULL;
+END cleanup;
 
 END json_UT;
 /

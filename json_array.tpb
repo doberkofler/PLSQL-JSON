@@ -61,6 +61,16 @@ END append;
 ----------------------------------------------------------
 --	append
 --
+MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN DATE)
+IS
+	aNodeID	BINARY_INTEGER;
+BEGIN
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(NULL, theValue));
+END append;
+
+----------------------------------------------------------
+--	append
+--
 MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN BOOLEAN)
 IS
 	aNodeID	BINARY_INTEGER;
@@ -76,7 +86,7 @@ IS
 	aNodeID	BINARY_INTEGER;
 BEGIN
 	--	add a new object node that will be used as the root for all the sub notes
-	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('O', NULL, NULL, NULL, NULL, NULL, NULL));
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('O', NULL, NULL, NULL, NULL, NULL, NULL, NULL));
 
 	--	copy the sub-nodes
 	json_utils.copyNodes(theTargetNodes=>SELF.nodes, theTargetNodeID=>aNodeID, theLastID=>SELF.lastID, theName=>NULL, theSourceNodes=>theValue.nodes);
@@ -90,7 +100,7 @@ IS
 	aNodeID	BINARY_INTEGER;
 BEGIN
 	--	add a new array node that will be used as the root for all the sub notes
-	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('A', NULL, NULL, NULL, NULL, NULL, NULL));
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('A', NULL, NULL, NULL, NULL, NULL, NULL, NULL));
 
 	--	copy the sub-nodes
 	json_utils.copyNodes(theTargetNodes=>SELF.nodes, theTargetNodeID=>aNodeID, theLastID=>SELF.lastID, theName=>NULL, theSourceNodes=>theValue.nodes);
@@ -154,13 +164,13 @@ END to_clob;
 ----------------------------------------------------------
 --	htp
 --
-MEMBER PROCEDURE htp(SELF IN json_array)
+MEMBER PROCEDURE htp(SELF IN json_array, theJSONP IN VARCHAR2 DEFAULT NULL)
 IS
 	aLob	CLOB	:=	empty_clob();
 BEGIN
 	dbms_lob.createtemporary(aLob, TRUE);
 	self.to_clob(aLob);
-	json_utils.htp_output_clob(aLob);
+	json_utils.htp_output_clob(aLob, theJSONP);
 	dbms_lob.freetemporary(aLob);
 END htp;
 

@@ -25,6 +25,7 @@ BEGIN
 		WHEN '0' THEN RETURN 'NULL';
 		WHEN 'S' THEN RETURN 'STRING';
 		WHEN 'N' THEN RETURN 'NUMBER';
+		WHEN 'D' THEN RETURN 'DATE';
 		WHEN 'B' THEN RETURN 'BOOLEAN';
 		ELSE
 			raise_application_error(-20100, 'json_node exception: node type ('||SELF.nodes(1).typ||') invalid');
@@ -78,6 +79,20 @@ BEGIN
 END get_number;
 
 ----------------------------------------------------------
+--	get_date
+--
+MEMBER FUNCTION get_date RETURN DATE
+IS
+BEGIN
+	IF (SELF.is_date()) THEN
+		RETURN SELF.nodes(1).dat;
+	ELSE
+		raise_application_error(-20100, 'json_node exception: attempt to get a date from a node with type ('||SELF.typ||')');
+		RETURN NULL;
+	END IF;
+END get_date;
+
+----------------------------------------------------------
 --	get_bool
 --
 MEMBER FUNCTION get_bool RETURN BOOLEAN
@@ -126,6 +141,15 @@ IS
 BEGIN
 	RETURN (SELF.get_type = 'NUMBER');
 END is_number;
+
+----------------------------------------------------------
+--	is_date
+--
+MEMBER FUNCTION is_date RETURN BOOLEAN
+IS
+BEGIN
+	RETURN (SELF.get_type = 'DATE');
+END is_date;
 
 ----------------------------------------------------------
 --	is_bool

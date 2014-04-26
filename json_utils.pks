@@ -2,7 +2,6 @@ CREATE OR REPLACE
 PACKAGE json_utils
 IS
 
-
 ----------------------------------------------------------
 --	get the number of nodes
 --
@@ -84,8 +83,7 @@ FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, t
 ----------------------------------------------------------
 --	copy output to the browser using htp.prn
 --
-PROCEDURE htp_output_clob(theLobBuf IN CLOB);
-
+PROCEDURE htp_output_clob(theLobBuf IN CLOB, theJSONP IN VARCHAR2 DEFAULT NULL);
 
 END json_utils;
 /

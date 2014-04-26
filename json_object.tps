@@ -1,7 +1,7 @@
 CREATE OR REPLACE
 TYPE json_object IS OBJECT
 
---	$Id$
+--	$Id: json_object.tps 42847 2014-04-06 17:38:58Z doberkofler $
 
 ------------
 --  OVERVIEW
@@ -36,6 +36,7 @@ TYPE json_object IS OBJECT
 --			aPersonObj.put('id', i);
 --			aPersonObj.put('name', aNameObj);
 --			aPersonObj.put('income', 4800 + i * 100);
+--			aPersonObj.put('birthday', SYSDATE);
 --			aPersonObj.put('male', TRUE);
 --			aPersonObj.put('voice', aEmailArray.to_json_value());
 --
@@ -83,6 +84,7 @@ TYPE json_object IS OBJECT
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN VARCHAR2),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN NUMBER),
+	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN DATE),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN BOOLEAN),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN json_object),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN json_value),
@@ -98,6 +100,6 @@ TYPE json_object IS OBJECT
 
 	--	Output methods
 	MEMBER PROCEDURE to_clob(SELF IN json_object, theLobBuf IN OUT NOCOPY CLOB, theEraseLob BOOLEAN DEFAULT TRUE),
-	MEMBER PROCEDURE htp(SELF IN json_object)
+	MEMBER PROCEDURE htp(SELF IN json_object, theJSONP IN VARCHAR2 DEFAULT NULL)
 );
 /

@@ -1,3 +1,9 @@
+v0.1.0:
+  date: 2014-04-26
+  changes:
+    - Added support for DATE types.
+    - Added support for JSONP.
+
 v0.0.1:
   date: 2013-09-24
   changes:

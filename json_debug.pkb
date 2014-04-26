@@ -247,6 +247,11 @@ BEGIN
 		IF (theNodes(theNodeID).num IS NOT NULL) THEN
 			r.nodeValue := TO_CHAR(theNodes(theNodeID).num);
 		END IF;
+	WHEN 'D' THEN
+		r.nodeType := 'DATE';
+		IF (theNodes(theNodeID).dat IS NOT NULL) THEN
+			r.nodeValue := TO_CHAR(theNodes(theNodeID).dat, 'YYYYMMDD HH24MISS');
+		END IF;
 	WHEN 'B' THEN
 		r.nodeType := 'BOOL';
 		IF (theNodes(theNodeID).num IS NOT NULL) THEN

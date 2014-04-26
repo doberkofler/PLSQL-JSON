@@ -5,23 +5,19 @@ PACKAGE BODY json_parser IS
 --	PRIVATE EXCEPTIONS
 ----------------------------------------------------------
 
-
 ----------------------------------------------------------
 --	PRIVATE TYPES
 ----------------------------------------------------------
 
-
 ----------------------------------------------------------
 --	PRIVATE CONSTANTS
 ----------------------------------------------------------
-
 
 ----------------------------------------------------------
 --	PRIVATE VARIABLES
 ----------------------------------------------------------
 
 decimalpoint VARCHAR2(1 CHAR) := '.';
-
 
 ----------------------------------------------------------
 -- LOCAL MODULES
@@ -36,11 +32,9 @@ FUNCTION lexer(jsrc IN OUT NOCOPY json_src) RETURN lTokens;
 
 PROCEDURE parseMem(tokens lTokens, indx IN OUT PLS_INTEGER, mem_name VARCHAR2, mem_indx NUMBER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY json_nodes);
 
-
 ----------------------------------------------------------
 -- GLOBAL MODULES
 ----------------------------------------------------------
-
 
 ----------------------------------------------------------
 --	updateDecimalPoint (private)
@@ -1029,7 +1023,6 @@ BEGIN
   --yyy	return obj.head();
 	RETURN NULL;
 END parse_any;
-
 
 END json_parser;
 /

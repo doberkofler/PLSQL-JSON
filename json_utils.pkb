@@ -2,7 +2,6 @@ CREATE OR REPLACE
 PACKAGE BODY json_utils
 IS
 
-
 ----------------------------------------------------------
 --	get the number of nodes
 --
@@ -128,13 +127,16 @@ BEGIN
 		CASE n.typ
 
 		WHEN '0' THEN	--	null
-			IF (n.str IS NOT NULL OR n.num IS NOT NULL) THEN
+			IF (n.str IS NOT NULL OR n.num IS NOT NULL OR n.dat IS NOT NULL) THEN
 				error(i, 'String or number value not NULL in a null node');
 			END IF;
 
 		WHEN 'S' THEN	--	string
 			IF (n.num IS NOT NULL) THEN
 				error(i, 'Number value not NULL in a string node');
+			END IF;
+			IF (n.dat IS NOT NULL) THEN
+				error(i, 'Date value not NULL in a string node');
 			END IF;
 
 		WHEN 'N' THEN	--	number
@@ -144,6 +146,20 @@ BEGIN
 			IF (n.num IS NULL) THEN
 				error(i, 'Number value is NULL in a number node');
 			END IF;
+			IF (n.dat IS NOT NULL) THEN
+				error(i, 'Date value not NULL in a number node');
+			END IF;
+
+		WHEN 'D' THEN	--	date
+			IF (n.str IS NOT NULL) THEN
+				error(i, 'String value not NULL in a date node');
+			END IF;
+			IF (n.num IS NOT NULL) THEN
+				error(i, 'Number value is not NULL in a date node');
+			END IF;
+			IF (n.dat IS NULL) THEN
+				error(i, 'Date value is NULL in a date node');
+			END IF;
 
 		WHEN 'B' THEN	--	boolean
 			IF (n.str IS NOT NULL) THEN
@@ -151,6 +167,9 @@ BEGIN
 			END IF;
 			IF (n.num IS NULL OR n.num NOT IN (0, 1)) THEN
 				error(i, 'Number values not 0 or 1 in a boolean node');
+			END IF;
+			IF (n.dat IS NOT NULL) THEN
+				error(i, 'Date value not NULL in a number node');
 			END IF;
 
 		WHEN 'O' THEN	--	object
@@ -368,6 +387,8 @@ BEGIN
 			s := 'null';
 		END IF;
 		add_to_clob(theLobBuf, theStrBuf, s);
+	WHEN 'D' THEN
+		add_to_clob(theLobBuf, theStrBuf, '"' || TO_CHAR(aNode.dat, 'YYYY-MM-DD') || 'T' || TO_CHAR(aNode.dat, 'HH24:MI:SS') || '.000Z"');
 	WHEN 'B' THEN
 		IF (aNode.num IS NOT NULL) THEN
 			add_to_clob(theLobBuf, theStrBuf, CASE aNode.num WHEN 1 THEN 'true' ELSE 'false' END);
@@ -514,7 +535,7 @@ END escape;
 ----------------------------------------------------------
 --	htp_output_clob
 --
-PROCEDURE htp_output_clob(theLobBuf IN CLOB)
+PROCEDURE htp_output_clob(theLobBuf IN CLOB, theJSONP IN VARCHAR2 DEFAULT NULL)
 IS
 	amt		NUMBER			:=	30;
 	off		NUMBER			:=	1;
@@ -523,8 +544,13 @@ BEGIN
 	--	open the headers
 	owa_util.mime_header('application/json', FALSE);
 
-	-- close the headers
+	--	close the headers
 	owa_util.http_header_close;
+	
+	--	the JSONP callback
+	IF (theJSONP IS NOT NULL) THEN
+		htp.prn(theJSONP || '(');
+	END IF;
 
 	--	output the CLOB
 	BEGIN
@@ -538,8 +564,12 @@ BEGIN
 		WHEN no_data_found THEN
 			NULL;
 	END;
-END htp_output_clob;
 
+	--	the JSONP callback
+	IF (theJSONP IS NOT NULL) THEN
+		htp.prn(')');
+	END IF;
+END htp_output_clob;
 
 END json_utils;
 /
