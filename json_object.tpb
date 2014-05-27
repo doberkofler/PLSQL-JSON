@@ -187,6 +187,30 @@ BEGIN
 END to_clob;
 
 ----------------------------------------------------------
+--	to_string
+--
+MEMBER FUNCTION to_string (SELF IN json_object) RETURN VARCHAR2
+IS
+	aLob	CLOB	:=	empty_clob();
+	theString VARCHAR2(32767) := '';
+	theLength  BINARY_INTEGER;
+    e_too_small EXCEPTION; -- ORA-06502: PL/SQL: numeric or value error
+    PRAGMA EXCEPTION_INIT( e_too_small, -06502);
+BEGIN
+	dbms_lob.createtemporary(aLob, TRUE);
+	self.to_clob(aLob);
+	theLength := dbms_lob.getlength(aLob);
+	IF theLength <= 32767 THEN
+		theString := dbms_lob.substr(aLob, 32767, 1); 
+	END IF;
+	dbms_lob.freetemporary(aLob);
+	IF theLength > 32767 THEN
+		RAISE e_too_small;
+	END IF;
+	RETURN theString;
+END to_string;
+
+----------------------------------------------------------
 --	htp
 --
 MEMBER PROCEDURE htp(SELF IN json_object, theJSONP IN VARCHAR2 DEFAULT NULL)

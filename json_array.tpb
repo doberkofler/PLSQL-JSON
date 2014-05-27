@@ -27,6 +27,16 @@ BEGIN
 	END IF;
 	RETURN;
 END json_array;
+----------------------------------------------------------
+--	json_array
+--
+CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theJSONString IN CLOB) RETURN SELF AS result
+IS
+BEGIN
+	SELF.nodes	:=	json_parser.parser(theJSONString, '[');
+	SELF.lastID	:=	NULL;
+	RETURN;
+END json_array;
 
 ----------------------------------------------------------
 --	append
@@ -160,6 +170,30 @@ BEGIN
 	END IF;
 	json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
 END to_clob;
+
+----------------------------------------------------------
+--	htp
+--
+MEMBER FUNCTION to_string (SELF IN json_array) RETURN VARCHAR2
+IS
+	aLob	CLOB	:=	empty_clob();
+	theString VARCHAR2(32767) := '';
+	theLength  BINARY_INTEGER;
+    e_too_small EXCEPTION; -- ORA-06502: PL/SQL: numeric or value error
+    PRAGMA EXCEPTION_INIT( e_too_small, -06502);
+BEGIN
+	dbms_lob.createtemporary(aLob, TRUE);
+	self.to_clob(aLob);
+	theLength := dbms_lob.getlength(aLob);
+	IF theLength <= 32767 THEN
+		theString := dbms_lob.substr(aLob, 32767, 1); 
+	END IF;
+	dbms_lob.freetemporary(aLob);
+	IF theLength > 32767 THEN
+		RAISE e_too_small;
+	END IF;
+	RETURN theString;
+END to_string;
 
 ----------------------------------------------------------
 --	htp

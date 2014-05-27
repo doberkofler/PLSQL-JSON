@@ -959,7 +959,7 @@ END parse_list;
 ----------------------------------------------------------
 --	parser
 --
-FUNCTION parser(str CLOB) RETURN json_nodes
+FUNCTION parser(str CLOB, type_name CHAR := '{') RETURN json_nodes
 IS
 	tokens		lTokens;
 	obj			json_nodes := json_nodes();
@@ -970,6 +970,10 @@ IS
 	aParentID	BINARY_INTEGER	:=	NULL;
 	aLastID		BINARY_INTEGER	:=	NULL;
 BEGIN
+    IF type_name NOT IN ('{','[') THEN
+	    raise_application_error(-20101, 'Invalid Parameter Value for type_name. Should should be in { [ but is '|| type_name);
+	END IF;
+	
 	updateDecimalPoint();
 	jsrc := prepareClob(str);
 
@@ -990,11 +994,19 @@ BEGIN
 		indx := indx + 1;
 		--yyy	obj := parseObj(tokens, indx);
 		parseObj(tokens, indx, aParentID, aLastID, obj);
+	ELSIF (tokens(indx).type_name = '[') THEN
+		indx := indx + 1;
+		--yyy	obj := parseObj(tokens, indx);
+		parseArr(tokens, indx, aParentID, aLastID, obj);
 	ELSE
-		raise_application_error(-20101, 'JSON Parser exception - no { start found');
+		raise_application_error(-20101, 'JSON Parser exception - no ' || type_name || ' start found');
 	END IF;
 	IF (tokens.count != indx) THEN
-		p_error('} should end the JSON object', tokens(indx));
+		IF type_name = '{' THEN
+			p_error('} should end the JSON object', tokens(indx));
+		ELSE
+			p_error('] should end the JSON object', tokens(indx));
+		END IF;
 	END IF;
 
 	RETURN obj;
