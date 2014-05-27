@@ -100,6 +100,7 @@ TYPE json_object IS OBJECT
 
 	--	Output methods
 	MEMBER PROCEDURE to_clob(SELF IN json_object, theLobBuf IN OUT NOCOPY CLOB, theEraseLob BOOLEAN DEFAULT TRUE),
+	MEMBER FUNCTION to_string (SELF IN json_object) RETURN VARCHAR2,
 	MEMBER PROCEDURE htp(SELF IN json_object, theJSONP IN VARCHAR2 DEFAULT NULL)
 );
 /
