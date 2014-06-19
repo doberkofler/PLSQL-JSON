@@ -7,6 +7,7 @@ TYPE json_array IS OBJECT
 	--	Constructors
 	CONSTRUCTOR FUNCTION json_array(self IN OUT NOCOPY json_array) RETURN self AS result,
 	CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theData IN json_value) RETURN SELF AS result,
+	CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theJSONString IN CLOB) RETURN SELF AS result,
 
 	--	Member setter methods
 	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array),

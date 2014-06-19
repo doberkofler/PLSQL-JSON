@@ -49,9 +49,9 @@ json_strict BOOLEAN NOT NULL := FALSE;
 --	GLOBAL PUBLIC MODULES
 ----------------------------------------------------------
 
-FUNCTION parser(str CLOB) RETURN json_nodes;
-FUNCTION parse_list(str CLOB) RETURN json_nodes;
-FUNCTION parse_any(str CLOB) RETURN json_nodes;
+FUNCTION parse_object(str CLOB) RETURN json_nodes;
+FUNCTION parse_array(str CLOB) RETURN json_nodes;
+FUNCTION parse_any(str CLOB) RETURN json_value;
 
 END json_parser;
 /

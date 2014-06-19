@@ -34,7 +34,7 @@ END json_object;
 CONSTRUCTOR FUNCTION json_object(SELF IN OUT NOCOPY json_object, theJSONString IN CLOB) RETURN SELF AS result
 IS
 BEGIN
-	SELF.nodes	:=	json_parser.parser(theJSONString);
+	SELF.nodes	:=	json_parser.parse_object(theJSONString);
 	SELF.lastID	:=	NULL;
 	RETURN;
 END json_object;

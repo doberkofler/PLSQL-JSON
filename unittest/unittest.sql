@@ -12,6 +12,9 @@
  */
 
 
+-- environment
+set pagesize 10000 linesize 10000 trimout on trimspool on
+
 -- delete existing objects
 whenever sqlerror continue
 DROP TABLE UT_test_table;
@@ -56,6 +59,17 @@ SELECT 'Successful unit tests: '||C "Unit test results" FROM (SELECT COUNT(*) C 
 UNION
 SELECT 'Failed unit tests: '||C "Unit test results" FROM (SELECT COUNT(*) C FROM plsql_json.UT_test_table WHERE Success = 'N')
 ORDER BY 1 DESC;
+
+-- show the errors
+column Module format a30
+column Title format a30
+column Result format a30
+column Expected format a30
+column Computed format a30
+SELECT		ID, Module, Title, Result, Expected, Computed
+FROM		UT_test_table
+WHERE		Success = 'N'
+ORDER BY	ID;
 
 -- cleanup
 whenever sqlerror continue

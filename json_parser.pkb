@@ -32,6 +32,8 @@ FUNCTION lexer(jsrc IN OUT NOCOPY json_src) RETURN lTokens;
 
 PROCEDURE parseMem(tokens lTokens, indx IN OUT PLS_INTEGER, mem_name VARCHAR2, mem_indx NUMBER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY json_nodes);
 
+FUNCTION parse(tokens IN lTokens, firstToken IN VARCHAR2) RETURN json_nodes;
+
 ----------------------------------------------------------
 -- GLOBAL MODULES
 ----------------------------------------------------------
@@ -630,7 +632,7 @@ BEGIN
 			RETURN;
 
 		ELSE
-			p_error('Expected string or }', tok);
+			p_error('Expected string or } but found '||tok.type_name, tok);
 
 		END CASE;
 
@@ -788,7 +790,7 @@ BEGIN
 				p_error('Premature exit in array', tok);
 			END IF;
 		ELSIF (tok.type_name != ']') THEN --error
-			p_error('Expected , or ]', tok);
+			p_error('Expected , or ] but found '||tok.type_name, tok);
 		END IF;
 
 	END LOOP;
@@ -929,52 +931,17 @@ BEGIN
 END parseMem;
 
 ----------------------------------------------------------
---	parse_list
+--	parse
 --
-FUNCTION parse_list(str CLOB) RETURN json_nodes
+FUNCTION parse(tokens IN lTokens, firstToken IN VARCHAR2) RETURN json_nodes
 IS
-	tokens	lTokens;
-	--yyy	obj		json_list;
-	obj		json_nodes := json_nodes();
-	indx	PLS_INTEGER := 1;
-	jsrc	json_src;
-BEGIN
-	debug('parse_list');
-	updateDecimalPoint();
-	jsrc := prepareClob(str);
-	tokens := lexer(jsrc);
-	IF (tokens(indx).type_name = '[') THEN
-		indx := indx + 1;
-		--yyy	obj := parseArr(tokens, indx);
-	ELSE
-		raise_application_error(-20101, 'JSON List Parser exception - no [ start found');
-	END IF;
-	IF (tokens.count != indx) THEN
-		p_error('] should end the JSON List object', tokens(indx));
-	END IF;
-
-	RETURN obj;
-END parse_list;
-
-----------------------------------------------------------
---	parser
---
-FUNCTION parser(str CLOB) RETURN json_nodes
-IS
-	tokens		lTokens;
-	obj			json_nodes := json_nodes();
-
-	indx		PLS_INTEGER		:= 1;
-	jsrc		json_src;
-	i			BINARY_INTEGER;
+	lastToken	VARCHAR2(1)		:=	NULL;
+	nodes		json_nodes		:=	json_nodes();
+	indx		PLS_INTEGER		:=	1;
+	--i			BINARY_INTEGER	:=	NULL;
 	aParentID	BINARY_INTEGER	:=	NULL;
 	aLastID		BINARY_INTEGER	:=	NULL;
 BEGIN
-	updateDecimalPoint();
-	jsrc := prepareClob(str);
-
-	tokens := lexer(jsrc);
-
 	--	dump tokens
 	/*
 	dbms_output.put_line('----------LEXER-S----------');
@@ -986,42 +953,93 @@ BEGIN
 	dbms_output.put_line('----------LEXER-E----------');
 	*/
 
-	IF (tokens(indx).type_name = '{') THEN
-		indx := indx + 1;
-		--yyy	obj := parseObj(tokens, indx);
-		parseObj(tokens, indx, aParentID, aLastID, obj);
-	ELSE
-		raise_application_error(-20101, 'JSON Parser exception - no { start found');
-	END IF;
-	IF (tokens.count != indx) THEN
-		p_error('} should end the JSON object', tokens(indx));
+	IF (tokens(indx).type_name != firstToken) THEN
+		raise_application_error(-20101, 'JSON Parser exception - invalid first token. Expected:'||firstToken||' bit found:'||tokens(indx).type_name);
 	END IF;
 
-	RETURN obj;
-END parser;
+	IF (tokens(indx).type_name = '{') THEN
+		lastToken := '}';
+		indx := indx + 1;
+		parseObj(tokens, indx, aParentID, aLastID, nodes);
+	ELSIF (tokens(indx).type_name = '[') THEN
+		lastToken := ']';
+		indx := indx + 1;
+		parseArr(tokens, indx, aParentID, aLastID, nodes);
+	ELSE
+		raise_application_error(-20101, 'JSON Parser exception - no '||firstToken||' start found');
+	END IF;
+	IF (tokens.count != indx) THEN
+		p_error(lastToken||' should end the last token in the JSON string', tokens(indx));
+	END IF;
+
+	RETURN nodes;
+END parse;
+
+----------------------------------------------------------
+--	parse_object
+--
+FUNCTION parse_object(str CLOB) RETURN json_nodes
+IS
+	jsrc	json_src;
+	tokens	lTokens;
+BEGIN
+	updateDecimalPoint();
+	jsrc := prepareClob(str);
+	tokens := lexer(jsrc);
+
+	IF (tokens(1).type_name != '{') THEN
+		raise_application_error(-20101, 'JSON Parser exception - invalid first token = '||tokens(1).type_name);
+	END IF;
+
+	RETURN parse(tokens=>tokens, firstToken=>'{');
+END parse_object;
+
+----------------------------------------------------------
+--	parse_array
+--
+FUNCTION parse_array(str CLOB) RETURN json_nodes
+IS
+	jsrc	json_src;
+	tokens	lTokens;
+BEGIN
+	updateDecimalPoint();
+	jsrc := prepareClob(str);
+	tokens := lexer(jsrc);
+
+	IF (tokens(1).type_name != '[') THEN
+		raise_application_error(-20101, 'JSON Parser exception - invalid first token = '||tokens(1).type_name);
+	END IF;
+
+	RETURN parse(tokens=>tokens, firstToken=>'[');
+END parse_array;
 
 ----------------------------------------------------------
 --	parse_any
 --
-FUNCTION parse_any(str CLOB) RETURN /*yyy	json_value*/json_nodes
+FUNCTION parse_any(str CLOB) RETURN json_value
 IS
-	tokens	lTokens;
-	--yyy	obj		json_list;
-	obj		json_array := json_array();
-	indx	PLS_INTEGER := 1;
-	jsrc	json_src;
+	firstToken	VARCHAR2(1);
+	jsrc		json_src;
+	tokens		lTokens;
+	value		json_value	:=	json_value();
 BEGIN
-	debug('parse_any');
+	updateDecimalPoint();
 	jsrc := prepareClob(str);
 	tokens := lexer(jsrc);
-	tokens(tokens.count+1).type_name := ']';
-	--yyy	obj := parseArr(tokens, indx);
-	IF (tokens.count != indx) THEN
-		p_error('] should end the JSON List object', tokens(indx));
+
+	IF (tokens(1).type_name = '{') THEN
+		firstToken	:= tokens(1).type_name;
+		value.typ	:= 'O';
+	ELSIF (tokens(1).type_name = '[') THEN
+		firstToken	:= tokens(1).type_name;
+		value.typ	:= 'A';
+	ELSE
+		raise_application_error(-20101, 'JSON Parser exception - invalid first token = '||tokens(1).type_name);
 	END IF;
 
-  --yyy	return obj.head();
-	RETURN NULL;
+	value.nodes := parse(tokens=>tokens, firstToken=>firstToken);
+
+	RETURN value;
 END parse_any;
 
 END json_parser;

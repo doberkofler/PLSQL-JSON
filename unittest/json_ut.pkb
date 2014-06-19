@@ -665,9 +665,9 @@ BEGIN
 END UT_BigObject;
 
 ----------------------------------------------------------
---	UT_ParseBasic (private)
+--	UT_ParseObject (private)
 --
-PROCEDURE UT_ParseBasic
+PROCEDURE UT_ParseObject
 IS
 	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
 	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
@@ -686,12 +686,13 @@ IS
 	END addPair;
 
 BEGIN
-	UT_util.module('UT_ParseBasic');
+	UT_util.module('UT_ParseObject');
 
 	--	allocate clob
 	dbms_lob.createtemporary(aLob, TRUE);
 
-	addPair('{  }');
+	addPair('{}');
+	addPair(' {  } ');
 	addPair('{"p1": null}');
 	addPair('{"p1": "v1"}');
 	addPair('{"p1": -0.4711}');
@@ -723,7 +724,170 @@ BEGIN
 
 	--	free temporary CLOB
 	dbms_lob.freetemporary(aLob);
-END UT_ParseBasic;
+END UT_ParseObject;
+
+----------------------------------------------------------
+--	UT_ParseArray (private)
+--
+PROCEDURE UT_ParseArray
+IS
+	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
+	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
+
+	aList		TestValueList;
+	aArray		json_array			:=	json_array();
+	aLob		CLOB				:=	empty_clob();
+	i			BINARY_INTEGER;
+
+	PROCEDURE addPair(theValue IN VARCHAR2, theResult IN VARCHAR2 DEFAULT NULL)
+	IS
+		c	BINARY_INTEGER	:=	aList.COUNT + 1;
+	BEGIN
+		aList(c).v := theValue;
+		aList(c).r := NVL(theResult, REPLACE(theValue, ' ', ''));
+	END addPair;
+
+BEGIN
+	UT_util.module('UT_ParseArray');
+
+	--	allocate clob
+	dbms_lob.createtemporary(aLob, TRUE);
+
+	addPair('[]');
+	addPair(' [  ] ');
+	addPair('[null]');
+	addPair('["v1"]');
+	addPair('[-0.4711]');
+	addPair('[true]');
+	addPair('[false]');
+	addPair('["v1", 2, true]');
+	addPair('[[{"a1p1": "a1v1", "a1p2": {}}, {"a2p1": "a2v2", "a2p2": []}, {"a3p1": "a3v1", "a3p2": [1, 2, 3]}]]');
+	addPair('[{}]');
+	addPair('[[]]');
+	addPair('[[{}, {}, {}, [[], {}, [[]]]]]');
+
+	FOR i IN 1 .. aList.COUNT LOOP
+		-- parse the json string
+		aArray := json_array(aList(i).v);
+		
+		-- validate the resulting object
+		json_utils.validate(aArray.nodes);
+		
+		-- convert the object back to a version string
+		aArray.to_clob(aLob);
+
+		-- test
+		UT_util.eqLOB(	theTitle	=>	'#'||i||': '||aList(i).v,
+						theComputed	=>	aLob,
+						theExpected	=>	aList(i).r,
+						theNullOK	=>	TRUE
+						);
+	END LOOP;
+
+	--	free temporary CLOB
+	dbms_lob.freetemporary(aLob);
+END UT_ParseArray;
+
+----------------------------------------------------------
+--	UT_ParseAny (private)
+--
+PROCEDURE UT_ParseAny
+IS
+	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
+	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
+
+	aList		TestValueList;
+
+	aValue		json_value			:=	json_value();
+	aStrBuf		VARCHAR2(32767);
+	aLob		CLOB				:=	empty_clob();
+
+	i			PLS_INTEGER;
+
+	PROCEDURE addPair(theValue IN VARCHAR2, theResult IN VARCHAR2 DEFAULT NULL)
+	IS
+		c	BINARY_INTEGER	:=	aList.COUNT + 1;
+	BEGIN
+		aList(c).v := theValue;
+		aList(c).r := NVL(theResult, REPLACE(theValue, ' ', ''));
+	END addPair;
+
+BEGIN
+	UT_util.module('UT_ParseAny');
+
+	--	allocate clob
+	dbms_lob.createtemporary(aLob, TRUE);
+
+	addPair('{}');
+	addPair(' {  } ');
+	addPair('{"p1": null}');
+	addPair('{"p1": "v1"}');
+	addPair('{"p1": -0.4711}');
+	addPair('{"p1": true}');
+	addPair('{"p1": false}');
+	addPair('{"p1": "v1", "p2": 2, "p3": true}');
+	addPair('{"p1": [{"a1p1": "a1v1", "a1p2": {}}, {"a2p1": "a2v2", "a2p2": []}, {"a3p1": "a3v1", "a3p2": [1, 2, 3]}]}');
+	addPair('{"p1": {}}');
+	addPair('{"p1": []}');
+	addPair('{"p1": [{}, {}, {}, [[], {}, [[]]]]}');
+	addPair('[]');
+	addPair(' [  ] ');
+	addPair('[null]');
+	addPair('["v1"]');
+	addPair('[-0.4711]');
+	addPair('[true]');
+	addPair('[false]');
+	addPair('["v1", 2, true]');
+	addPair('[[{"a1p1": "a1v1", "a1p2": {}}, {"a2p1": "a2v2", "a2p2": []}, {"a3p1": "a3v1", "a3p2": [1, 2, 3]}]]');
+	addPair('[{}]');
+	addPair('[[]]');
+	addPair('[[{}, {}, {}, [[], {}, [[]]]]]');
+
+	FOR i IN 1 .. aList.COUNT LOOP
+		-- use parses
+		aValue := json_parser.parse_any(aList(i).v);
+		json_utils.validate(aValue.nodes);
+
+		json_utils.erase_clob(aLob);
+		aStrBuf := NULL;
+		IF (aValue.typ = 'O') THEN
+			json_utils.object_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
+		ELSIF (aValue.typ = 'A') THEN
+			json_utils.array_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
+		ELSE
+			NULL;
+		END IF;
+
+		UT_util.eqLOB(	theTitle	=>	'#'||i||': '||aList(i).v,
+						theComputed	=>	aLob,
+						theExpected	=>	aList(i).r,
+						theNullOK	=>	TRUE
+						);
+
+		-- use json_value to parse
+		aValue := json_value(aList(i).v);
+		json_utils.validate(aValue.nodes);
+
+		json_utils.erase_clob(aLob);
+		aStrBuf := NULL;
+		IF (aValue.typ = 'O') THEN
+			json_utils.object_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
+		ELSIF (aValue.typ = 'A') THEN
+			json_utils.array_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
+		ELSE
+			NULL;
+		END IF;
+
+		UT_util.eqLOB(	theTitle	=>	'#'||i||': '||aList(i).v,
+						theComputed	=>	aLob,
+						theExpected	=>	aList(i).r,
+						theNullOK	=>	TRUE
+						);
+	END LOOP;
+
+	--	free temporary CLOB
+	dbms_lob.freetemporary(aLob);
+END UT_ParseAny;
 
 ----------------------------------------------------------
 --	UT_ParseSimple (private)
@@ -1026,7 +1190,9 @@ BEGIN
 	UT_DeepRecursion;
 	UT_ComplexObject;
 	UT_BigObject;
-	UT_ParseBasic;
+	UT_ParseObject;
+	UT_ParseArray;
+	UT_ParseAny;
 	UT_ParseSimple;
 	UT_ParseComplex;
 	UT_ParseAndDestruct;

@@ -29,6 +29,17 @@ BEGIN
 END json_array;
 
 ----------------------------------------------------------
+--	json_array
+--
+CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theJSONString IN CLOB) RETURN SELF AS result
+IS
+BEGIN
+	SELF.nodes	:=	json_parser.parse_array(theJSONString);
+	SELF.lastID	:=	NULL;
+	RETURN;
+END json_array;
+
+----------------------------------------------------------
 --	append
 --
 MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array)

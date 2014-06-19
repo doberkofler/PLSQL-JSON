@@ -15,6 +15,19 @@ BEGIN
 END json_value;
 
 ----------------------------------------------------------
+--	json_value
+--
+CONSTRUCTOR FUNCTION json_value(SELF IN OUT NOCOPY json_value, theJSONString IN CLOB) RETURN SELF AS RESULT
+IS
+	value	json_value	:=	json_value();
+BEGIN
+	value		:=	json_parser.parse_any(theJSONString);
+	SELF.typ	:=	value.typ;
+	SELF.nodes	:=	value.nodes;
+	RETURN;
+END json_value;
+
+----------------------------------------------------------
 --	get_type
 --
 MEMBER FUNCTION get_type RETURN VARCHAR2

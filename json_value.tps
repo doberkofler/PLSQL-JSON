@@ -6,6 +6,7 @@ TYPE json_value IS OBJECT
 
 	--	Default constructor
 	CONSTRUCTOR FUNCTION json_value(SELF IN OUT NOCOPY json_value) RETURN SELF AS RESULT,
+	CONSTRUCTOR FUNCTION json_value(SELF IN OUT NOCOPY json_value, theJSONString IN CLOB) RETURN SELF AS RESULT,
 
 	--	Member getter methods
 	MEMBER FUNCTION get_type RETURN VARCHAR2,
