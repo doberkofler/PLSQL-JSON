@@ -52,12 +52,12 @@ PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VA
 ----------------------------------------------------------
 --	convert an object to a JSON string
 --
-PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER);
+PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
 
 ----------------------------------------------------------
 --	convert an array to a JSON string
 --
-PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER);
+PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
 
 ----------------------------------------------------------
 --	add a string to a CLOB

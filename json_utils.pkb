@@ -3,6 +3,9 @@ PACKAGE BODY json_utils
 IS
 
 ----------------------------------------------------------
+RE_NO_ESCAPE_NEEDED		CONSTANT	VARCHAR2(256)	:=	'^[a-zA-Z0-9 _]+$';
+
+----------------------------------------------------------
 --	get the number of nodes
 --
 FUNCTION getNodeCount(theNodes IN json_nodes) RETURN BINARY_INTEGER
@@ -348,111 +351,50 @@ BEGIN
 END createSubTree;
 
 ----------------------------------------------------------
---	value_to_clob
+--	escape
 --
-PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER)
+FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2
 IS
-	aNode	json_node	:=	theNodes(theNodeID);
-	s		VARCHAR2(32767);
+	sb							VARCHAR2(32767) := '';
+	buf							VARCHAR2(64);
+	num							NUMBER;
 BEGIN
-	--	Add the property name
-	IF (aNode.nam IS NOT NULL) THEN
-		add_to_clob(theLobBuf, theStrBuf, '"');
-		add_to_clob(theLobBuf, theStrBuf, escape(aNode.nam));
-		add_to_clob(theLobBuf, theStrBuf, '"');
-		add_to_clob(theLobBuf, theStrBuf, ':');
+	IF (theString IS NULL) THEN
+		RETURN '';
+	END IF;
+	
+	IF (REGEXP_LIKE(theString, RE_NO_ESCAPE_NEEDED)) THEN
+		RETURN theString;
 	END IF;
 
-	--	Add the property value
-	CASE aNode.typ
-	WHEN '0' THEN
-		add_to_clob(theLobBuf, theStrBuf, 'null');
-	WHEN 'S' THEN
-		add_to_clob(theLobBuf, theStrBuf, '"');
-		add_to_clob(theLobBuf, theStrBuf, escape(aNode.str));
-		add_to_clob(theLobBuf, theStrBuf, '"');
-	WHEN 'N' THEN
-		IF (aNode.num IS NOT NULL) THEN
-			s := '';
-			IF (aNode.num < 1 AND aNode.num > 0) THEN
-				s := '0';
+	FOR I IN 1 .. LENGTH(theString) LOOP
+		buf := SUBSTR(theString, i, 1);
+
+		CASE buf
+		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
+		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
+		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
+		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
+		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(34) THEN buf := '\"';
+		WHEN CHR(47) THEN				--	slash
+			IF (theEscapeSolitus) THEN
+				buf := '\/';
 			END IF;
-			IF (aNode.num < 0 AND aNode.num > -1) THEN
-				s := '-0';
-				s := s || SUBSTR(TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,'''), 2);
-			ELSE
-				s := s || TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
+		WHEN CHR(92) THEN buf := '\\';	--	backslash
+		ELSE
+			IF (ASCII(buf) < 32) THEN
+				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
+			ELSIF (theAsciiOutput) then
+				buf := REPLACE(ASCIISTR(buf), '\', '\u');
 			END IF;
-		ELSE
-			s := 'null';
-		END IF;
-		add_to_clob(theLobBuf, theStrBuf, s);
-	WHEN 'D' THEN
-		add_to_clob(theLobBuf, theStrBuf, '"' || TO_CHAR(aNode.dat, 'YYYY-MM-DD') || 'T' || TO_CHAR(aNode.dat, 'HH24:MI:SS') || '.000Z"');
-	WHEN 'B' THEN
-		IF (aNode.num IS NOT NULL) THEN
-			add_to_clob(theLobBuf, theStrBuf, CASE aNode.num WHEN 1 THEN 'true' ELSE 'false' END);
-		ELSE
-			add_to_clob(theLobBuf, theStrBuf, 'null');
-		END IF;
-	WHEN 'O' THEN
-		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub);
-	WHEN 'A' THEN
-		json_utils.Array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub);
-	ELSE
-		RAISE VALUE_ERROR;
-	END CASE;
-END value_to_clob;
+		END CASE;
 
-----------------------------------------------------------
---	object_to_clob
---
-PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER)
-IS
-	i	BINARY_INTEGER	:=	theNodeID;
-BEGIN
-	--	Serialize the object
-	json_utils.add_to_clob(theLobBuf, theStrBuf, '{');
-	WHILE (i IS NOT NULL) LOOP
-		--	Add separator from last property if we are not the first one
-		IF (i != theNodeID) THEN
-			json_utils.add_to_clob(theLobBuf, theStrBuf, ',');
-		END IF;
-
-		--	Add the property pair
-		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
-
-		i := theNodes(i).nex;
+		sb := sb || buf;
 	END LOOP;
-	json_utils.add_to_clob(theLobBuf, theStrBuf, '}');
 
-	json_utils.flush_clob(theLobBuf, theStrBuf);
-END object_to_clob;
-
-----------------------------------------------------------
---	array_to_clob
---
-PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER)
-IS
-	i	BINARY_INTEGER	:=	theNodeID;
-BEGIN
-	--	Serialize the object
-	json_utils.add_to_clob(theLobBuf, theStrBuf, '[');
-	WHILE (i IS NOT NULL) LOOP
-		--	Add separator from last array entry if we are not the first one
-		IF (i != theNodeID) THEN
-			json_utils.add_to_clob(theLobBuf, theStrBuf, ',');
-		END IF;
-
-		--	Add the property pair
-		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
-
-		i := theNodes(i).nex;
-	END LOOP;
-	json_utils.add_to_clob(theLobBuf, theStrBuf, ']');
-
-	json_utils.flush_clob(theLobBuf, theStrBuf);
-END array_to_clob;
+	RETURN sb;
+END escape;
 
 ----------------------------------------------------------
 --	add_to_clob
@@ -469,6 +411,126 @@ BEGIN
 END add_to_clob;
 
 ----------------------------------------------------------
+--	value_to_clob
+--
+PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER)
+IS
+	aNode	json_node			:=	theNodes(theNodeID);
+	s		VARCHAR2(32767);
+BEGIN
+	--	Add the property name
+	IF (aNode.nam IS NOT NULL) THEN
+		PRAGMA INLINE (escape, 'YES');
+		s := escape(aNode.nam);
+
+		PRAGMA INLINE (add_to_clob, 'YES');
+		add_to_clob(theLobBuf, theStrBuf, '"' || s || '":');
+	END IF;
+
+	--	Add the property value
+	CASE aNode.typ
+	WHEN '0' THEN
+		s := 'null';
+	WHEN 'S' THEN
+		PRAGMA INLINE (escape, 'YES');
+		s := '"' || escape(aNode.str) || '"';
+	WHEN 'N' THEN
+		IF (aNode.num IS NOT NULL) THEN
+			IF (aNode.num < 1 AND aNode.num > 0) THEN
+				s := '0'|| TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
+			ELSIF (aNode.num < 0 AND aNode.num > -1) THEN
+				s := '-0' || SUBSTR(TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,'''), 2);
+			ELSE
+				s := TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
+			END IF;
+		ELSE
+			s := 'null';
+		END IF;
+	WHEN 'D' THEN
+		s := '"' || TO_CHAR(aNode.dat, 'YYYY-MM-DD') || 'T' || TO_CHAR(aNode.dat, 'HH24:MI:SS') || '.000Z"';
+	WHEN 'B' THEN
+		IF (aNode.num IS NOT NULL) THEN
+			s := CASE aNode.num WHEN 1 THEN 'true' ELSE 'false' END;
+		ELSE
+			s := 'null';
+		END IF;
+	WHEN 'O' THEN
+		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
+		RETURN;
+	WHEN 'A' THEN
+		json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
+		RETURN;
+	ELSE
+		RAISE VALUE_ERROR;
+	END CASE;
+
+	PRAGMA INLINE (add_to_clob, 'YES');
+	add_to_clob(theLobBuf, theStrBuf, s);
+END value_to_clob;
+
+----------------------------------------------------------
+--	object_to_clob
+--
+PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE)
+IS
+	i	BINARY_INTEGER	:=	theNodeID;
+BEGIN
+	--	Serialize the object
+	PRAGMA INLINE (add_to_clob, 'YES');
+	json_utils.add_to_clob(theLobBuf, theStrBuf, '{');
+	WHILE (i IS NOT NULL) LOOP
+		--	Add separator from last property if we are not the first one
+		IF (i != theNodeID) THEN
+			PRAGMA INLINE (add_to_clob, 'YES');
+			json_utils.add_to_clob(theLobBuf, theStrBuf, ',');
+		END IF;
+
+		--	Add the property pair
+		PRAGMA INLINE (value_to_clob, 'YES');
+		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
+
+		i := theNodes(i).nex;
+	END LOOP;
+	PRAGMA INLINE (add_to_clob, 'YES');
+	json_utils.add_to_clob(theLobBuf, theStrBuf, '}');
+
+	IF (theFlushToLOB) THEN
+		json_utils.flush_clob(theLobBuf, theStrBuf);
+	END IF;
+END object_to_clob;
+
+----------------------------------------------------------
+--	array_to_clob
+--
+PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE)
+IS
+	i	BINARY_INTEGER	:=	theNodeID;
+BEGIN
+	--	Serialize the object
+	PRAGMA INLINE (add_to_clob, 'YES');
+	json_utils.add_to_clob(theLobBuf, theStrBuf, '[');
+	WHILE (i IS NOT NULL) LOOP
+		--	Add separator from last array entry if we are not the first one
+		IF (i != theNodeID) THEN
+			PRAGMA INLINE (add_to_clob, 'YES');
+			json_utils.add_to_clob(theLobBuf, theStrBuf, ',');
+		END IF;
+
+		--	Add the property pair
+		PRAGMA INLINE (value_to_clob, 'YES');
+		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
+
+		i := theNodes(i).nex;
+	END LOOP;
+	PRAGMA INLINE (add_to_clob, 'YES');
+	json_utils.add_to_clob(theLobBuf, theStrBuf, ']');
+
+	IF (theFlushToLOB) THEN
+		json_utils.flush_clob(theLobBuf, theStrBuf);
+	END IF;
+END array_to_clob;
+
+----------------------------------------------------------
 --	flush_clob
 --
 PROCEDURE flush_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2)
@@ -480,6 +542,9 @@ BEGIN
 	END IF;
 END flush_clob;
 
+----------------------------------------------------------
+--	erase_clob
+--
 PROCEDURE erase_clob(theLobBuf IN OUT NOCOPY CLOB)
 IS
 	aAmount	NUMBER			:= dbms_lob.getlength(theLobBuf);
@@ -489,48 +554,6 @@ BEGIN
 		dbms_lob.erase(theLobBuf, aAmount);
 	END IF;
 END erase_clob;
-
-----------------------------------------------------------
---	escape
---
-FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2
-IS
-	sb							VARCHAR2(32767) := '';
-	buf							VARCHAR2(64);
-	num							NUMBER;
-BEGIN
-	IF (theString IS NULL) THEN
-		RETURN '';
-	END IF;
-
-	FOR I IN 1 .. LENGTH(theString) LOOP
-		buf := SUBSTR(theString, i, 1);
-
-		CASE buf
-		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
-		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
-		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
-		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
-		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
-		WHEN CHR(34) THEN buf := '\"';
-		WHEN CHR(47) THEN
-			IF (theEscapeSolitus) THEN
-				buf := '\/';
-			END IF;
-		WHEN CHR(92) THEN buf := '\\';
-		ELSE
-			IF (ASCII(buf) < 32) THEN
-				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
-			ELSIF (theAsciiOutput) then
-				buf := REPLACE(ASCIISTR(buf), '\', '\u');
-			END IF;
-		END CASE;
-
-		sb := sb || buf;
-	END LOOP;
-
-	RETURN sb;
-END escape;
 
 ----------------------------------------------------------
 --	htp_output_clob
@@ -546,7 +569,7 @@ BEGIN
 
 	--	close the headers
 	owa_util.http_header_close;
-	
+
 	--	the JSONP callback
 	IF (theJSONP IS NOT NULL) THEN
 		htp.prn(theJSONP || '(');
