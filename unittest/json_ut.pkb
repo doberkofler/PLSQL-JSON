@@ -54,6 +54,97 @@ BEGIN
 END UT_escape;
 
 ----------------------------------------------------------
+--	test the convertion of simple values (private)
+--
+PROCEDURE UT_Values
+IS
+	TYPE TestValueType IS RECORD (
+		typ		VARCHAR2(1),		--	0, S, N, D, B
+		str		VARCHAR2(2000),
+		num		NUMBER,
+		dat		DATE,
+		bln		BOOLEAN,
+		result	VARCHAR2(32767)
+	);
+	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
+
+	aList			TestValueList;
+	
+	aObject			json_object	:=	json_object();
+
+	aLob			CLOB		:=	empty_clob();
+
+	THIS_DATE		DATE		:=	TO_DATE('19990101', 'YYYYMMDD');
+
+	PROCEDURE add(typ IN VARCHAR2, str IN VARCHAR2 DEFAULT NULL, num IN NUMBER DEFAULT NULL, dat IN DATE DEFAULT NULL, bln IN BOOLEAN DEFAULT NULL, result IN VARCHAR2)
+	IS
+		c	BINARY_INTEGER	:=	aList.COUNT + 1;
+	BEGIN
+		aList(c).typ	:= typ;
+		aList(c).str	:= str;
+		aList(c).num	:= num;
+		aList(c).dat	:= dat;
+		aList(c).bln	:= bln;
+		aList(c).result	:= result;
+	END add;
+BEGIN
+	UT_util.module('UT_Values');
+
+	--	allocate clob
+	dbms_lob.createtemporary(aLob, TRUE);
+
+	--	test data
+	add(typ=>'0', 					result=>'{"value":null}');
+	add(typ=>'S', str=>NULL,		result=>'{"value":""}');
+	add(typ=>'S', str=>'',			result=>'{"value":""}');
+	add(typ=>'S', str=>'a',			result=>'{"value":"a"}');
+	add(typ=>'N', num=>0,			result=>'{"value":0}');
+	add(typ=>'N', num=>-1,			result=>'{"value":-1}');
+	add(typ=>'N', num=>1,			result=>'{"value":1}');
+	add(typ=>'N', num=>0.1,			result=>'{"value":0.1}');
+	add(typ=>'N', num=>0.001,		result=>'{"value":0.001}');
+	add(typ=>'N', num=>-0.1,		result=>'{"value":-0.1}');
+	add(typ=>'N', num=>-0.001,		result=>'{"value":-0.001}');
+	add(typ=>'N', num=>99E10,		result=>'{"value":990000000000}');
+	add(typ=>'N', num=>-99E10,		result=>'{"value":-990000000000}');
+	add(typ=>'N', num=>99E15,		result=>'{"value":99000000000000000}');
+	add(typ=>'N', num=>-99E15,		result=>'{"value":-99000000000000000}');
+	add(typ=>'D', dat=>THIS_DATE,	result=>'{"value":"1999-01-01T00:00:00.000Z"}');
+	add(typ=>'D', dat=>THIS_DATE+1,	result=>'{"value":"1999-01-02T00:00:00.000Z"}');
+	add(typ=>'B', bln=>FALSE,		result=>'{"value":false}');
+	add(typ=>'B', bln=>TRUE,		result=>'{"value":true}');
+
+	--	check JSON string
+	FOR i IN 1 .. aList.COUNT LOOP
+		aObject := json_object();
+		
+		CASE aList(i).typ
+		WHEN '0' THEN
+			aObject.put('value');
+		WHEN 'S' THEN
+			aObject.put('value', aList(i).str);
+		WHEN 'N' THEN
+			aObject.put('value', aList(i).num);
+		WHEN 'D' THEN
+			aObject.put('value', aList(i).dat);
+		WHEN 'B' THEN
+			aObject.put('value', aList(i).bln);
+		END CASE;
+
+		aObject.to_clob(theLobBuf=>aLob);
+		
+		UT_util.eqLOB(	theTitle	=>	'#'||i,
+						theComputed	=>	aLob,
+						theExpected	=>	TO_CLOB(aList(i).result),
+						theNullOK	=>	TRUE
+						);
+	END LOOP;
+
+	--	cleanup
+	dbms_lob.freetemporary(aLob);
+END UT_Values;
+
+----------------------------------------------------------
 --	check the internal representation using nodes (private)
 --
 PROCEDURE UT_Nodes
@@ -1183,6 +1274,7 @@ PROCEDURE run
 IS
 BEGIN
 	UT_escape;
+	UT_values;
 	UT_Nodes;
 	UT_getter;
 	UT_Object;
