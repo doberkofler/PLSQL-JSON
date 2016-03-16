@@ -1,3 +1,7 @@
+v0.3.1 - March 16, 2016
+* 0.3.1 (Dieter Oberkofler)
+* Fixed a problem when escaping a string that ends with CHR(10). (Dieter Oberkofler)
+
 v0.3.0 - December 15, 2014
 * 0.3.0 (Dieter Oberkofler)
 * Improved the performance of object_to_clob and array_to_clob by up to 400%. (Dieter Oberkofler)

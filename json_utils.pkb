@@ -3,9 +3,6 @@ PACKAGE BODY json_utils
 IS
 
 ----------------------------------------------------------
-RE_NO_ESCAPE_NEEDED		CONSTANT	VARCHAR2(256)	:=	'^[a-zA-Z0-9 _]+$';
-
-----------------------------------------------------------
 --	get the number of nodes
 --
 FUNCTION getNodeCount(theNodes IN json_nodes) RETURN BINARY_INTEGER
@@ -363,10 +360,6 @@ BEGIN
 		RETURN '';
 	END IF;
 	
-	IF (REGEXP_LIKE(theString, RE_NO_ESCAPE_NEEDED)) THEN
-		RETURN theString;
-	END IF;
-
 	FOR I IN 1 .. LENGTH(theString) LOOP
 		buf := SUBSTR(theString, i, 1);
 
