@@ -1,12 +1,12 @@
 CREATE OR REPLACE
-PACKAGE json_UT IS
+PACKAGE json_sql_UT IS
 
---	$Id: json_ut.pks 44379 2014-12-13 13:46:56Z doberkofler $
+--	$Id: json_sql_ut.pks 47795 2016-04-27 17:48:21Z doberkofler $
 
 ------------
 --  OVERVIEW
 --
---  Unit tests for the PL/SQL JSON library
+--  Unit tests for the PL/SQL JSON library dynamic SQL interface
 --
 --
 
@@ -37,16 +37,11 @@ PACKAGE json_UT IS
 ----------------------------------------------------------
 
 ----------------------------------------------------------
---	get a json object using htp
---
-PROCEDURE getJSON(theCount IN NUMBER);
-
-----------------------------------------------------------
 --	Run unit tests
 --
 PROCEDURE prepare;
 PROCEDURE run;
 PROCEDURE cleanup;
 
-END json_UT;
+END json_sql_UT;
 /

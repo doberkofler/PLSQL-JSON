@@ -1,7 +1,6 @@
 CREATE OR REPLACE
 TYPE BODY json_array IS
 
-
 ----------------------------------------------------------
 --	json_array
 --
@@ -19,23 +18,12 @@ END json_array;
 CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theData IN json_value) RETURN SELF AS result
 IS
 BEGIN
-	IF (theData.typ != 'A') THEN
+	IF (theData.typ != json_const.NODE_TYPE_ARRAY) THEN
 		raise_application_error(-20100, 'json_array exception: unable to convert node ('||theData.typ||') to an array');
 	ELSE
 		SELF.nodes	:=	theData.nodes;
 		SELF.lastID	:=	NULL;
 	END IF;
-	RETURN;
-END json_array;
-
-----------------------------------------------------------
---	json_array
---
-CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theJSONString IN CLOB) RETURN SELF AS result
-IS
-BEGIN
-	SELF.nodes	:=	json_parser.parse_array(theJSONString);
-	SELF.lastID	:=	NULL;
 	RETURN;
 END json_array;
 
@@ -50,7 +38,7 @@ BEGIN
 END append;
 
 ----------------------------------------------------------
---	append
+--	append (VARCHAR2)
 --
 MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN VARCHAR2)
 IS
@@ -60,7 +48,17 @@ BEGIN
 END append;
 
 ----------------------------------------------------------
---	append
+--	append (CLOB)
+--
+MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN CLOB)
+IS
+	aNodeID	BINARY_INTEGER;
+BEGIN
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(NULL, theValue));
+END append;
+
+----------------------------------------------------------
+--	append (NUMBER)
 --
 MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN NUMBER)
 IS
@@ -70,7 +68,7 @@ BEGIN
 END append;
 
 ----------------------------------------------------------
---	append
+--	append (DATE)
 --
 MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN DATE)
 IS
@@ -80,7 +78,7 @@ BEGIN
 END append;
 
 ----------------------------------------------------------
---	append
+--	append (BOOLEAN)
 --
 MEMBER PROCEDURE append(SELF IN OUT NOCOPY json_array, theValue IN BOOLEAN)
 IS
@@ -97,7 +95,7 @@ IS
 	aNodeID	BINARY_INTEGER;
 BEGIN
 	--	add a new object node that will be used as the root for all the sub notes
-	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('O', NULL, NULL, NULL, NULL, NULL, NULL, NULL));
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(json_const.NODE_TYPE_OBJECT, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
 
 	--	copy the sub-nodes
 	json_utils.copyNodes(theTargetNodes=>SELF.nodes, theTargetNodeID=>aNodeID, theLastID=>SELF.lastID, theName=>NULL, theSourceNodes=>theValue.nodes);
@@ -111,7 +109,7 @@ IS
 	aNodeID	BINARY_INTEGER;
 BEGIN
 	--	add a new array node that will be used as the root for all the sub notes
-	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('A', NULL, NULL, NULL, NULL, NULL, NULL, NULL));
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(json_const.NODE_TYPE_ARRAY, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
 
 	--	copy the sub-nodes
 	json_utils.copyNodes(theTargetNodes=>SELF.nodes, theTargetNodeID=>aNodeID, theLastID=>SELF.lastID, theName=>NULL, theSourceNodes=>theValue.nodes);
@@ -156,7 +154,7 @@ END exist;
 MEMBER FUNCTION to_json_value(self IN json_array) RETURN json_value
 IS
 BEGIN
-	RETURN json_value('A', SELF.nodes);
+	RETURN json_value(json_const.NODE_TYPE_ARRAY, SELF.nodes);
 END to_json_value;
 
 ----------------------------------------------------------
@@ -167,10 +165,26 @@ IS
 	aStrBuf	VARCHAR2(32767);
 BEGIN
 	IF (theEraseLob) THEN
-		json_utils.erase_clob(theLobBuf);
+		json_clob.erase(theLobBuf);
 	END IF;
 	json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
 END to_clob;
+
+----------------------------------------------------------
+--	to_text
+--
+MEMBER FUNCTION to_text(SELF IN json_array) RETURN VARCHAR2
+IS
+	aStrBuf	VARCHAR2(32767);
+	aLobLoc	CLOB;
+BEGIN
+	dbms_lob.createtemporary(lob_loc=>aLobLoc, cache=>TRUE, dur=>dbms_lob.session);
+	json_utils.array_to_clob(theLobBuf=>aLobLoc, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
+	aStrBuf := dbms_lob.substr(aLobLoc, 32767, 1);
+	dbms_lob.freetemporary(lob_loc=>aLobLoc);
+
+	RETURN aStrBuf;
+END to_text;
 
 ----------------------------------------------------------
 --	htp
@@ -184,7 +198,6 @@ BEGIN
 	json_utils.htp_output_clob(aLob, theJSONP);
 	dbms_lob.freetemporary(aLob);
 END htp;
-
 
 END;
 /

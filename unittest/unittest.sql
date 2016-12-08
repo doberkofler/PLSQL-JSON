@@ -47,10 +47,20 @@ show errors
 show errors
 @@json_ut.pkb
 show errors
+@@json_sql_ut.pks
+show errors
+@@json_sql_ut.pkb
+show errors
 
 -- run the unit tests
 BEGIN
+	json_ut.prepare;
 	json_ut.run;
+	json_ut.cleanup;
+
+	json_sql_ut.prepare;
+	json_sql_ut.run;
+	json_sql_ut.cleanup;
 END;
 /
 
@@ -76,4 +86,6 @@ whenever sqlerror continue
 DROP TABLE UT_test_table;
 DROP SEQUENCE UT_test_seq;
 DROP PACKAGE json_ut;
+DROP PACKAGE json_sql_ut;
+DROP PACKAGE UT_util;
 whenever sqlerror exit 1

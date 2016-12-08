@@ -7,11 +7,11 @@ TYPE json_array IS OBJECT
 	--	Constructors
 	CONSTRUCTOR FUNCTION json_array(self IN OUT NOCOPY json_array) RETURN self AS result,
 	CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theData IN json_value) RETURN SELF AS result,
-	CONSTRUCTOR FUNCTION json_array(SELF IN OUT NOCOPY json_array, theJSONString IN CLOB) RETURN SELF AS result,
 
 	--	Member setter methods
 	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array),
 	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array, theValue IN VARCHAR2),
+	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array, theValue IN CLOB),
 	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array, theValue IN NUMBER),
 	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array, theValue IN DATE),
 	MEMBER PROCEDURE append(self IN OUT NOCOPY json_array, theValue IN BOOLEAN),
@@ -28,6 +28,7 @@ TYPE json_array IS OBJECT
 
 	--	Output methods
 	MEMBER PROCEDURE to_clob(SELF IN json_array, theLobBuf IN OUT NOCOPY CLOB, theEraseLob BOOLEAN DEFAULT TRUE),
+	MEMBER FUNCTION to_text(SELF IN json_array) RETURN VARCHAR2,
 	MEMBER PROCEDURE htp(SELF IN json_array, theJSONP IN VARCHAR2 DEFAULT NULL)
 );
 /

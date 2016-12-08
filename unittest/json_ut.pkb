@@ -1,6 +1,8 @@
 CREATE OR REPLACE
 PACKAGE BODY json_UT IS
 
+--	$Id: json_ut.pkb 49652 2016-12-08 18:17:30Z doberkofler $
+
 ----------------------------------------------------------
 --	PRIVATE TYPES
 ----------------------------------------------------------
@@ -8,6 +10,13 @@ PACKAGE BODY json_UT IS
 ----------------------------------------------------------
 --	LOCAL MODULES
 ----------------------------------------------------------
+
+PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN json_nodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL);
+PROCEDURE getComplexObject(theJsonObject IN OUT NOCOPY json_object, theJsonString IN OUT NOCOPY CLOB);
+PROCEDURE clearLob(theLob IN OUT NOCOPY CLOB);
+PROCEDURE setLob(theLob IN OUT NOCOPY CLOB, theValue IN VARCHAR2);
+PROCEDURE fillLob(theLob IN OUT NOCOPY CLOB);
+FUNCTION toJSON(theDate IN DATE) RETURN VARCHAR2;
 
 ----------------------------------------------------------
 --	GLOBAL MODULES
@@ -94,25 +103,27 @@ BEGIN
 	dbms_lob.createtemporary(aLob, TRUE);
 
 	--	test data
-	add(typ=>'0', 					result=>'{"value":null}');
-	add(typ=>'S', str=>NULL,		result=>'{"value":""}');
-	add(typ=>'S', str=>'',			result=>'{"value":""}');
-	add(typ=>'S', str=>'a',			result=>'{"value":"a"}');
-	add(typ=>'N', num=>0,			result=>'{"value":0}');
-	add(typ=>'N', num=>-1,			result=>'{"value":-1}');
-	add(typ=>'N', num=>1,			result=>'{"value":1}');
-	add(typ=>'N', num=>0.1,			result=>'{"value":0.1}');
-	add(typ=>'N', num=>0.001,		result=>'{"value":0.001}');
-	add(typ=>'N', num=>-0.1,		result=>'{"value":-0.1}');
-	add(typ=>'N', num=>-0.001,		result=>'{"value":-0.001}');
-	add(typ=>'N', num=>99E10,		result=>'{"value":990000000000}');
-	add(typ=>'N', num=>-99E10,		result=>'{"value":-990000000000}');
-	add(typ=>'N', num=>99E15,		result=>'{"value":99000000000000000}');
-	add(typ=>'N', num=>-99E15,		result=>'{"value":-99000000000000000}');
-	add(typ=>'D', dat=>THIS_DATE,	result=>'{"value":"1999-01-01T00:00:00.000Z"}');
-	add(typ=>'D', dat=>THIS_DATE+1,	result=>'{"value":"1999-01-02T00:00:00.000Z"}');
-	add(typ=>'B', bln=>FALSE,		result=>'{"value":false}');
-	add(typ=>'B', bln=>TRUE,		result=>'{"value":true}');
+	add(typ=>'0', 																	result=>'{"value":null}');
+	add(typ=>'S', str=>NULL,														result=>'{"value":""}');
+	add(typ=>'S', str=>'',															result=>'{"value":""}');
+	add(typ=>'S', str=>'a',															result=>'{"value":"a"}');
+	add(typ=>'S', str=>CHR(8)||CHR(9)||CHR(10)||CHR(13)||CHR(14)||CHR(34)||CHR(92),	result=>'{"value":"\b\t\n\f\r\"\\"}');
+	add(typ=>'S', str=>CHR(1)||CHR(2)||CHR(30)||CHR(31),							result=>'{"value":"\u0001\u0002\u001E\u001F"}');
+	add(typ=>'N', num=>0,															result=>'{"value":0}');
+	add(typ=>'N', num=>-1,															result=>'{"value":-1}');
+	add(typ=>'N', num=>1,															result=>'{"value":1}');
+	add(typ=>'N', num=>0.1,															result=>'{"value":0.1}');
+	add(typ=>'N', num=>0.001,														result=>'{"value":0.001}');
+	add(typ=>'N', num=>-0.1,														result=>'{"value":-0.1}');
+	add(typ=>'N', num=>-0.001,														result=>'{"value":-0.001}');
+	add(typ=>'N', num=>99E10,														result=>'{"value":990000000000}');
+	add(typ=>'N', num=>-99E10,														result=>'{"value":-990000000000}');
+	add(typ=>'N', num=>99E15,														result=>'{"value":99000000000000000}');
+	add(typ=>'N', num=>-99E15,														result=>'{"value":-99000000000000000}');
+	add(typ=>'D', dat=>THIS_DATE,													result=>'{"value":"'||toJSON(THIS_DATE)||'"}');
+	add(typ=>'D', dat=>THIS_DATE + 1,												result=>'{"value":"'||toJSON(THIS_DATE + 1)||'"}');
+	add(typ=>'B', bln=>FALSE,														result=>'{"value":false}');
+	add(typ=>'B', bln=>TRUE,														result=>'{"value":true}');
 
 	--	check JSON string
 	FOR i IN 1 .. aList.COUNT LOOP
@@ -145,81 +156,409 @@ BEGIN
 END UT_Values;
 
 ----------------------------------------------------------
---	check the internal representation using nodes (private)
+--	test the convertion of CLOB values (private)
+--
+PROCEDURE UT_LobValues
+IS
+	aValue		CLOB		:=	EMPTY_CLOB();
+	aOutput		CLOB		:=	EMPTY_CLOB();
+	aExpected	CLOB		:=	EMPTY_CLOB();
+	aObj		json_object	:=	json_object();
+BEGIN
+	UT_util.module('UT_LobValues');
+
+	--allocate clob
+	dbms_lob.createtemporary(lob_loc=>aValue, cache=>TRUE, dur=>dbms_lob.session);
+	dbms_lob.createtemporary(lob_loc=>aOutput, cache=>TRUE, dur=>dbms_lob.session);
+	dbms_lob.createtemporary(lob_loc=>aExpected, cache=>TRUE, dur=>dbms_lob.session);
+
+	-- EMPTY_CLOB()
+	aObj := json_object();
+	aObj.put('value', EMPTY_CLOB());
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":""}'));
+	UT_util.eqLOB(theTitle=>'1: EMPTY_CLOB()', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	-- empty CLOB
+	aObj := json_object();
+	setLob(aValue, '');
+	aObj.put('value', aValue);
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":""}'));
+	UT_util.eqLOB(theTitle=>'2: NULL', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	-- #
+	aObj := json_object();
+	setLob(aValue, '#');
+	aObj.put('value', aValue);
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"#"}'));
+	UT_util.eqLOB(theTitle=>'3: #', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	-- special characters
+	aObj := json_object();
+	setLob(aValue, CHR(8)||CHR(9)||CHR(10)||CHR(13)||CHR(14)||CHR(34)||CHR(92));
+	aObj.put('value', aValue);
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"\b\t\n\f\r\"\\"}'));
+	UT_util.eqLOB(theTitle=>'4: \b\t\n\f\r\"\\', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	-- hex
+	aObj := json_object();
+	clearLob(theLob=>aValue);
+	setLob(aValue, CHR(1)||CHR(2)||CHR(30)||CHR(31));
+	aObj.put('value', aValue);
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"\u0001\u0002\u001E\u001F"}'));
+	UT_util.eqLOB(theTitle=>'5: \u0001\u0002\u001E\u001F', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	-- ##########
+	aObj := json_object();
+	setLob(aValue, '##########');
+	aObj.put('value', aValue);
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"##########"}'));
+	UT_util.eqLOB(theTitle=>'6: ##########', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	-- 32767 * 10 x #
+	aObj := json_object();
+	fillLob(theLob=>aValue); -- 32767 * 2
+	aObj.put('value', aValue);
+	aObj.to_clob(theLobBuf=>aOutput);
+	clearLob(theLob=>aExpected);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"'));
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>aValue);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('"}'));
+	UT_util.eqLOB(theTitle=>'7: 32767*10...#', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+
+	--	cleanup
+	dbms_lob.freetemporary(lob_loc=>aValue);
+	dbms_lob.freetemporary(lob_loc=>aOutput);
+	dbms_lob.freetemporary(lob_loc=>aExpected);
+END UT_LobValues;
+
+----------------------------------------------------------
+--	check the internal representation using nodes
 --
 PROCEDURE UT_Nodes
 IS
-	aObject1		json_object	:=	json_object();
-	aArray1			json_array	:=	json_array();
-	aObject2		json_object	:=	json_object();
-	aArray2			json_array	:=	json_array();
-
-	aLob			CLOB		:=	empty_clob();
-
-	PROCEDURE checkNode(theNodes IN json_nodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL)
-	IS
-	BEGIN
-		UT_util.eq(theTitle=>'#'||theNodeID||'(type)',		theExpected=>theType,	theComputed=>theNodes(theNodeID).typ, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(name)',		theExpected=>theName,	theComputed=>theNodes(theNodeID).nam, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(string)',	theExpected=>theString,	theComputed=>theNodes(theNodeID).str, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(number)',	theExpected=>theNumber,	theComputed=>theNodes(theNodeID).num, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(date)',		theExpected=>NULL,		theComputed=>theNodes(theNodeID).dat, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(parent)',	theExpected=>theParent,	theComputed=>theNodes(theNodeID).par, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(next)',		theExpected=>theNext,	theComputed=>theNodes(theNodeID).nex, theNullOK=>TRUE);
-		UT_util.eq(theTitle=>'#'||theNodeID||'(sub)',		theExpected=>theSub,	theComputed=>theNodes(theNodeID).sub, theNullOK=>TRUE);
-	END checkNode;
+	aObject1		json_object		:=	json_object();
+	aArray1			json_array		:=	json_array();
+	aObject2		json_object		:=	json_object();
+	aArray2			json_array		:=	json_array();
+	aLob			CLOB			:=	empty_clob();
+	aTitle			VARCHAR2(80);
 BEGIN
 	UT_util.module('UT_Nodes');
 
 	--	allocate clob
 	dbms_lob.createtemporary(aLob, TRUE);
 
+	--
 	--	aArray2
+	--
 	aArray2.append('a1');
 	aArray2.append(8.11);
+	json_utils.validate(aArray2.nodes);
 
+	aTitle := 'aArray2';
+	aArray2.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle||': json-string',
+					theComputed	=>	aLob,
+					theExpected	=>	'["a1",8.11]',
+					theNullOK	=>	TRUE
+					);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>2, theComputed=>aArray2.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>2, theComputed=>aArray2.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aArray2.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>NULL, theString=>'a1');
+		checkNode(			theTitle=>aTitle,	theNodes=>aArray2.nodes, theNodeID=>2,		theType=>'N', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>NULL, theNumber=>8.11);
+
+	--
 	--	aObject2
+	--
 	aObject2.put('p1', aArray2.to_json_value());
 	aObject2.put('p2', aArray2.to_json_value());
+	json_utils.validate(aObject2.nodes);
 
+	aTitle := 'aObject2';
+	aObject2.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle||': json-string',
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":["a1",8.11],"p2":["a1",8.11]}',
+					theNullOK	=>	TRUE
+					);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>6, theComputed=>aObject2.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>4, theComputed=>aObject2.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject2.nodes, theNodeID=>1,		theType=>'A', theSub=>2,	theParent=>NULL,	theNext=>4,			theName=>'p1');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject2.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL,	theParent=>1,		theNext=>3,			theName=>NULL, theString=>'a1');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject2.nodes, theNodeID=>3,		theType=>'N', theSub=>NULL,	theParent=>1,		theNext=>NULL,		theName=>NULL, theNumber=>8.11);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject2.nodes, theNodeID=>4,		theType=>'A', theSub=>5,	theParent=>NULL,	theNext=>NULL,		theName=>'p2');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject2.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL,	theParent=>4,		theNext=>6,			theName=>NULL, theString=>'a1');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject2.nodes, theNodeID=>6,		theType=>'N', theSub=>NULL,	theParent=>4,		theNext=>NULL,		theName=>NULL, theNumber=>8.11);
+
+	--
 	--	aArray1
+	--
 	aArray1.append(aObject2);
 	aArray1.append(aObject2);
+	json_utils.validate(aArray1.nodes);
 
+	aTitle := 'aArray1';
+	aArray1.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle||': json-string',
+					theComputed	=>	aLob,
+					theExpected	=>	'[{"p1":["a1",8.11],"p2":["a1",8.11]},{"p1":["a1",8.11],"p2":["a1",8.11]}]',
+					theNullOK	=>	FALSE
+					);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>14, theComputed=>aArray1.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>8, theComputed=>aArray1.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>1,		theType=>'O', theSub=>2,	theParent=>NULL,	theNext=>8,		theName=>NULL);
+		checkNode(			theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>2,		theType=>'A', theSub=>3,	theParent=>1,		theNext=>5,		theName=>'p1');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL,	theParent=>2,		theNext=>4,		theName=>NULL,		theString=>'a1');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>4,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+		checkNode(			theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>5,		theType=>'A', theSub=>6,	theParent=>1,		theNext=>NULL,	theName=>'p2');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL,	theParent=>5,		theNext=>7,		theName=>NULL,		theString=>'a1');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>7,		theType=>'N', theSub=>NULL,	theParent=>5,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+		checkNode(			theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>8,		theType=>'O', theSub=>9,	theParent=>NULL,	theNext=>NULL,	theName=>NULL);
+		checkNode(			theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>9,		theType=>'A', theSub=>10,	theParent=>8,		theNext=>12,	theName=>'p1');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>10,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>11,	theName=>NULL,		theString=>'a1');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>11,		theType=>'N', theSub=>NULL, theParent=>9,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+		checkNode(			theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>12,		theType=>'A', theSub=>13,	theParent=>8,		theNext=>NULL,	theName=>'p2');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>13,		theType=>'S', theSub=>NULL,	theParent=>12,		theNext=>14,	theName=>NULL,		theString=>'a1');
+			checkNode(		theTitle=>aTitle,	theNodes=>aArray1.nodes, theNodeID=>14,		theType=>'N', theSub=>NULL,	theParent=>12,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+
+	--
 	--	aObject1
+	--
 	aObject1.put('data', aArray1.to_json_value());
-
-	--	validate
 	json_utils.validate(aObject1.nodes);
 
-	--	check JSON string
+	aTitle := 'aObject1';
 	aObject1.to_clob(theLobBuf=>aLob);
-	UT_util.eqLOB(	theTitle	=>	'json-string',
+	UT_util.eqLOB(	theTitle	=>	aTitle||': json-string',
 					theComputed	=>	aLob,
 					theExpected	=>	'{"data":[{"p1":["a1",8.11],"p2":["a1",8.11]},{"p1":["a1",8.11],"p2":["a1",8.11]}]}',
 					theNullOK	=>	FALSE
 					);
-
-	--	check the nodes
-	checkNode(				theNodes=>aObject1.nodes, theNodeID=>1,		theType=>'A', theSub=>2,	theParent=>NULL,	theNext=>NULL,	theName=>'data');
-		checkNode(			theNodes=>aObject1.nodes, theNodeID=>2,		theType=>'O', theSub=>3,	theParent=>1,		theNext=>9,		theName=>NULL);
-			checkNode(		theNodes=>aObject1.nodes, theNodeID=>3,		theType=>'A', theSub=>4,	theParent=>2,		theNext=>6,		theName=>'p1');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>4,		theType=>'S', theSub=>NULL,	theParent=>3,		theNext=>5,		theName=>NULL,		theString=>'a1');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>5,		theType=>'N', theSub=>NULL, theParent=>3,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
-			checkNode(		theNodes=>aObject1.nodes, theNodeID=>6,		theType=>'A', theSub=>7,	theParent=>2,		theNext=>NULL,	theName=>'p2');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL,	theParent=>6,		theNext=>8,		theName=>NULL,		theString=>'a1');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>8,		theType=>'N', theSub=>NULL,	theParent=>6,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
- 		checkNode(			theNodes=>aObject1.nodes, theNodeID=>9,		theType=>'O', theSub=>10,	theParent=>1,		theNext=>NULL,	theName=>NULL);
-			checkNode(		theNodes=>aObject1.nodes, theNodeID=>10,	theType=>'A', theSub=>11,	theParent=>9,		theNext=>13,	theName=>'p1');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>11,	theType=>'S', theSub=>NULL,	theParent=>10,		theNext=>12,	theName=>NULL,		theString=>'a1');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>12,	theType=>'N', theSub=>NULL, theParent=>10,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
-			checkNode(		theNodes=>aObject1.nodes, theNodeID=>13,	theType=>'A', theSub=>14,	theParent=>9,		theNext=>NULL,	theName=>'p2');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>14,	theType=>'S', theSub=>NULL,	theParent=>13,		theNext=>15,	theName=>NULL,		theString=>'a1');
-				checkNode(	theNodes=>aObject1.nodes, theNodeID=>15,	theType=>'N', theSub=>NULL,	theParent=>13,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>15, theComputed=>aObject1.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>1, theComputed=>aObject1.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>1,		theType=>'A', theSub=>2,	theParent=>NULL,	theNext=>NULL,	theName=>'data');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>2,		theType=>'O', theSub=>3,	theParent=>1,		theNext=>9,		theName=>NULL);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>3,		theType=>'A', theSub=>4,	theParent=>2,		theNext=>6,		theName=>'p1');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>4,		theType=>'S', theSub=>NULL,	theParent=>3,		theNext=>5,		theName=>NULL,		theString=>'a1');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>5,		theType=>'N', theSub=>NULL, theParent=>3,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>6,		theType=>'A', theSub=>7,	theParent=>2,		theNext=>NULL,	theName=>'p2');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL,	theParent=>6,		theNext=>8,		theName=>NULL,		theString=>'a1');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>8,		theType=>'N', theSub=>NULL,	theParent=>6,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+ 		checkNode(			theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>9,		theType=>'O', theSub=>10,	theParent=>1,		theNext=>NULL,	theName=>NULL);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>10,	theType=>'A', theSub=>11,	theParent=>9,		theNext=>13,	theName=>'p1');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>11,	theType=>'S', theSub=>NULL,	theParent=>10,		theNext=>12,	theName=>NULL,		theString=>'a1');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>12,	theType=>'N', theSub=>NULL, theParent=>10,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>13,	theType=>'A', theSub=>14,	theParent=>9,		theNext=>NULL,	theName=>'p2');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>14,	theType=>'S', theSub=>NULL,	theParent=>13,		theNext=>15,	theName=>NULL,		theString=>'a1');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject1.nodes, theNodeID=>15,	theType=>'N', theSub=>NULL,	theParent=>13,		theNext=>NULL,	theName=>NULL,		theNumber=>8.11);
 
 	--	cleanup
 	dbms_lob.freetemporary(aLob);
 END UT_Nodes;
+
+----------------------------------------------------------
+--	UT_RemoveNode
+--
+PROCEDURE UT_RemoveNode
+IS
+	aJsonObject		json_object				:=	json_object();
+	aJsonString		CLOB					:=	empty_clob();
+
+	aObject			json_object				:=	json_object();
+	aLob			CLOB					:=	empty_clob();
+
+	aNodeID			BINARY_INTEGER;
+	aLastID			BINARY_INTEGER;
+
+	aTitle			VARCHAR2(32767);
+BEGIN
+	UT_util.module('UT_RemoveNode');
+
+	-- allocate clob
+	dbms_lob.createtemporary(aJsonString, TRUE);
+	dbms_lob.createtemporary(aLob, TRUE);
+
+	-- construct a complex json object
+	getComplexObject(theJsonObject=>aJsonObject, theJsonString=>aJsonString);
+
+	-- create sub object
+	aTitle := 'create sub object';
+	aObject := aJsonObject;
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>12, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>7, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL, theParent=>NULL,	theNext=>2,			theName=>'fname',	theString=>'john');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'0', theSub=>NULL, theParent=>NULL,	theNext=>3,			theName=>'mname');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL, theParent=>NULL,	theNext=>4,			theName=>'lname',	theString=>'doe');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'A', theSub=>5,	theParent=>NULL,	theNext=>7,			theName=>'email');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL, theParent=>4,		theNext=>6,			theName=>NULL,		theString=>'j.doe@gmail.com');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL, theParent=>4,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'O', theSub=>8,	theParent=>NULL,	theNext=>NULL,		theName=>'address');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'A', theSub=>9,	theParent=>7,		theNext=>10,		theName=>'street');
+			checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'S', theSub=>NULL, theParent=>8,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>11,		theName=>'city',	theString=>'los angeles');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>12,		theName=>'state',	theString=>'ca');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	aJsonString,
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'create complex object';
+	aObject := json_object();
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p2',	theValue=>aJsonObject);
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>15, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>15, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'O', theSub=>3,	theParent=>NULL,	theNext=>15,		theName=>'p2');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL, theParent=>2,		theNext=>4,			theName=>'fname',	theString=>'john');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'0', theSub=>NULL, theParent=>2,		theNext=>5,			theName=>'mname');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL, theParent=>2,		theNext=>6,			theName=>'lname',	theString=>'doe');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'A', theSub=>7,	theParent=>2,		theNext=>9,			theName=>'email');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL, theParent=>6,		theNext=>8,			theName=>NULL,		theString=>'j.doe@gmail.com');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'S', theSub=>NULL, theParent=>6,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'O', theSub=>10,	theParent=>2,		theNext=>NULL,		theName=>'address');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'A', theSub=>11,	theParent=>9,		theNext=>12,		theName=>'street');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL, theParent=>10,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>13,		theName=>'city',	theString=>'los angeles');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>13,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>14,		theName=>'state',	theString=>'ca');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>14,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>15,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',		theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":'||aJsonString||',"p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	-- get node id of property p3
+	aNodeID := json_utils.getNodeIDByName(theNodes=>aObject.nodes, thePropertyName=>'p3');
+	UT_util.eq(theTitle=>'get node id of property p3', theExpected=>15, theComputed=>aNodeID, theNullOK=>TRUE);
+
+	-- remove nodes of property p3
+	aTitle := 'remove property p3';
+	aObject.lastID := json_utils.removeNode(theNodes=>aObject.nodes, theNodeID=>aNodeID);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>14, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>2, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'O', theSub=>3,	theParent=>NULL,	theNext=>NULL,		theName=>'p2');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL, theParent=>2,		theNext=>4,			theName=>'fname',	theString=>'john');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'0', theSub=>NULL, theParent=>2,		theNext=>5,			theName=>'mname');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL, theParent=>2,		theNext=>6,			theName=>'lname',	theString=>'doe');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'A', theSub=>7,	theParent=>2,		theNext=>9,			theName=>'email');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL, theParent=>6,		theNext=>8,			theName=>NULL,		theString=>'j.doe@gmail.com');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'S', theSub=>NULL, theParent=>6,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'O', theSub=>10,	theParent=>2,		theNext=>NULL,		theName=>'address');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'A', theSub=>11,	theParent=>9,		theNext=>12,		theName=>'street');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL, theParent=>10,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>13,		theName=>'city',	theString=>'los angeles');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>13,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>14,		theName=>'state',	theString=>'ca');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>14,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":'||aJsonString||'}',
+					theNullOK	=>	TRUE
+					);
+
+	-- get node id of property p1
+	aNodeID := json_utils.getNodeIDByName(theNodes=>aObject.nodes, thePropertyName=>'p1');
+	UT_util.eq(theTitle=>'get node id of property p1', theExpected=>1, theComputed=>aNodeID, theNullOK=>TRUE);
+
+	-- remove nodes of property p1
+	aTitle := 'remove property p1';
+	aObject.lastID := json_utils.removeNode(theNodes=>aObject.nodes, theNodeID=>aNodeID);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>13, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>1, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'O', theSub=>2,	theParent=>NULL,	theNext=>NULL,		theName=>'p2');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL, theParent=>1,		theNext=>3,			theName=>'fname',	theString=>'john');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'0', theSub=>NULL, theParent=>1,		theNext=>4,			theName=>'mname');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'S', theSub=>NULL, theParent=>1,		theNext=>5,			theName=>'lname',	theString=>'doe');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'A', theSub=>6,	theParent=>1,		theNext=>8,			theName=>'email');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL, theParent=>5,		theNext=>7,			theName=>NULL,		theString=>'j.doe@gmail.com');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL, theParent=>5,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'O', theSub=>9,	theParent=>1,		theNext=>NULL,		theName=>'address');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'A', theSub=>10,	theParent=>8,		theNext=>11,		theName=>'street');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'S', theSub=>NULL, theParent=>9,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL,	theParent=>8,		theNext=>12,		theName=>'city',	theString=>'los angeles');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>8,		theNext=>13,		theName=>'state',	theString=>'ca');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>13,		theType=>'S', theSub=>NULL,	theParent=>8,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p2":'||aJsonString||'}',
+					theNullOK	=>	TRUE
+					);
+
+	-- remove nodes of property p1
+	aTitle := 'remove property p1#2';
+	aObject := json_object();
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p2',	theValue=>aJsonObject);
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	aNodeID := json_utils.getNodeIDByName(theNodes=>aObject.nodes, thePropertyName=>'p1');
+	aObject.lastID := json_utils.removeNode(theNodes=>aObject.nodes, theNodeID=>aNodeID);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>14, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>14, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'O', theSub=>2,	theParent=>NULL,	theNext=>14,		theName=>'p2');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL, theParent=>1,		theNext=>3,			theName=>'fname',	theString=>'john');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'0', theSub=>NULL, theParent=>1,		theNext=>4,			theName=>'mname');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'S', theSub=>NULL, theParent=>1,		theNext=>5,			theName=>'lname',	theString=>'doe');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'A', theSub=>6,	theParent=>1,		theNext=>8,			theName=>'email');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL, theParent=>5,		theNext=>7,			theName=>NULL,		theString=>'j.doe@gmail.com');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL, theParent=>5,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'O', theSub=>9,	theParent=>1,		theNext=>NULL,		theName=>'address');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'A', theSub=>10,	theParent=>8,		theNext=>11,		theName=>'street');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'S', theSub=>NULL, theParent=>9,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL,	theParent=>8,		theNext=>12,		theName=>'city',	theString=>'los angeles');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>8,		theNext=>13,		theName=>'state',	theString=>'ca');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>13,		theType=>'S', theSub=>NULL,	theParent=>8,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>14,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',		theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p2":'||aJsonString||',"p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	-- remove nodes of property p1
+	aTitle := 'remove property p2#2';
+	aObject := json_object();
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p2',	theValue=>aJsonObject);
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	aNodeID := json_utils.getNodeIDByName(theNodes=>aObject.nodes, thePropertyName=>'p2');
+	aObject.lastID := json_utils.removeNode(theNodes=>aObject.nodes, theNodeID=>aNodeID);
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>2, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>2, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',		theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	--	cleanup
+	dbms_lob.freetemporary(aJsonString);
+	dbms_lob.freetemporary(aLob);
+END UT_RemoveNode;
 
 ----------------------------------------------------------
 --	check the getters (private)
@@ -436,19 +775,23 @@ BEGIN
 	aObject.put(theName=>'p5',	theValue=>-1);
 	aObject.put(theName=>'p6',	theValue=>+2);
 	aObject.put(theName=>'p7',	theValue=>.14);
-	aObject.put(theName=>'p8',	theValue=>TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS'));
+	aDate := TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS');
+	aObject.put(theName=>'p8',	theValue=>aDate);
 	aObject.put(theName=>'p9',	theValue=>FALSE);
 	aObject.put(theName=>'p10',	theValue=>TRUE);
 	json_utils.validate(aObject.nodes);
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'constants',
 					theComputed	=>	aLob,
-					theExpected	=>	'{"p1":null,"p2":"string","p3":"","p4":0,"p5":-1,"p6":2,"p7":0.14,"p8":"2014-11-11T11:12:13.000Z","p9":false,"p10":true}',
+					theExpected	=>	'{"p1":null,"p2":"string","p3":"","p4":0,"p5":-1,"p6":2,"p7":0.14,"p8":"'||toJSON(aDate)||'","p9":false,"p10":true}',
 					theNullOK	=>	FALSE
 					);
 
 	-- put variables to an object
 	aObject := json_object();
+	aNumber := NULL;
+	aDate := NULL;
+	aBoolean := NULL;
 	aObject.put(theName=>'p1', theValue=>aNumber);
 	aObject.put(theName=>'p2', theValue=>aDate);
 	aObject.put(theName=>'p3', theValue=>aBoolean);
@@ -462,7 +805,7 @@ BEGIN
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'variables',
 					theComputed	=>	aLob,
-					theExpected	=>	'{"p1":null,"p2":null,"p3":null,"p4":0,"p5":"2014-11-11T11:12:13.000Z","p6":false}',
+					theExpected	=>	'{"p1":null,"p2":null,"p3":null,"p4":0,"p5":"'||toJSON(aDate)||'","p6":false}',
 					theNullOK	=>	FALSE
 					);
 
@@ -473,7 +816,7 @@ BEGIN
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'add',
 					theComputed	=>	aLob,
-					theExpected	=>	'{"p1":null,"p2":null,"p3":null,"p4":0,"p5":"2014-11-11T11:12:13.000Z","p6":false,"p6":"v6"}',
+					theExpected	=>	'{"p1":null,"p2":null,"p3":null,"p4":0,"p5":"'||toJSON(aDate)||'","p6":"v6"}',
 					theNullOK	=>	FALSE
 					);
 
@@ -522,6 +865,265 @@ BEGIN
 END UT_Object;
 
 ----------------------------------------------------------
+--	UT_Duplicates (private)
+--
+PROCEDURE UT_Duplicates
+IS
+	aJsonObject		json_object				:=	json_object();
+	aJsonString		CLOB					:=	empty_clob();
+	aObject			json_object				:=	json_object();
+	aArray			json_array				:=	json_array();
+	aNumber			NUMBER;
+	aDate			DATE;
+	aBoolean		BOOLEAN;
+
+	aLob			CLOB					:=	empty_clob();
+
+	aTitle			VARCHAR2(32767);
+
+	i				BINARY_INTEGER;
+BEGIN
+	UT_util.module('UT_Duplicates');
+
+	-- allocate clob
+	dbms_lob.createtemporary(aJsonString, TRUE);
+	dbms_lob.createtemporary(aLob, TRUE);
+
+	-- construct a complex json object
+	getComplexObject(theJsonObject=>aJsonObject, theJsonString=>aJsonString);
+
+	-- empty object
+	aTitle := 'empty object';
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>0, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>NULL, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	'empty',
+					theComputed	=>	aLob,
+					theExpected	=>	'{}',
+					theNullOK	=>	TRUE
+					);
+
+	aArray.append(1);
+	aArray.append(2);
+	aArray.append(3);
+
+	aTitle := 'duplicates#1';
+	aObject := json_object();
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p2',	theValue=>'v2');
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>3, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>3, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',	theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>3,			theName=>'p2',	theString=>'v2');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',	theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":"v2","p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#2';
+	aObject.put(theName=>'p1',	theValue=>'v1!');
+	aObject.put(theName=>'p3',	theValue=>'v3!');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>3, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>3, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p2',	theString=>'v2');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>3,			theName=>'p1',	theString=>'v1!');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',	theString=>'v3!');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p2":"v2","p1":"v1!","p3":"v3!"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#3';
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>3, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>3, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p2',	theString=>'v2');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>3,			theName=>'p1',	theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',	theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p2":"v2","p1":"v1","p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#4';
+	aObject := json_object();
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p2',	theValue=>'v2');
+	aObject.put(theName=>'p2',	theValue=>aArray.to_json_value());
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>6, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>6, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'A', theSub=>3,	theParent=>NULL,	theNext=>6,			theName=>'p2');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>4,			theName=>NULL,		theNumber=>1);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>5,			theName=>NULL,		theNumber=>2);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>NULL,		theName=>NULL,		theNumber=>3);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',		theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":[1,2,3],"p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#5';
+	aObject.put(theName=>'p3',	theValue=>aArray.to_json_value());
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>9, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>6, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'A', theSub=>3,	theParent=>NULL,	theNext=>6,			theName=>'p2');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>4,			theName=>NULL,		theNumber=>1);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>5,			theName=>NULL,		theNumber=>2);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>NULL,		theName=>NULL,		theNumber=>3);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'A', theSub=>7,	theParent=>NULL,	theNext=>NULL,		theName=>'p3');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'N', theSub=>NULL, theParent=>6,		theNext=>8,			theName=>NULL,		theNumber=>1);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'N', theSub=>NULL, theParent=>6,		theNext=>9,			theName=>NULL,		theNumber=>2);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'N', theSub=>NULL, theParent=>6,		theNext=>NULL,		theName=>NULL,		theNumber=>3);
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":[1,2,3],"p3":[1,2,3]}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#6';
+	aObject.put(theName=>'p3',	theValue=>'v3!');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>6, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>6, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'A', theSub=>3,	theParent=>NULL,	theNext=>6,			theName=>'p2');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>4,			theName=>NULL,		theNumber=>1);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>5,			theName=>NULL,		theNumber=>2);
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'N', theSub=>NULL, theParent=>2,		theNext=>NULL,		theName=>NULL,		theNumber=>3);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',		theString=>'v3!');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":[1,2,3],"p3":"v3!"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#7';
+	aObject.put(theName=>'p2',	theValue=>'v2!');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>3, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>3, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>3,			theName=>'p3',		theString=>'v3!');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p2',		theString=>'v2!');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p3":"v3!","p2":"v2!"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#8';
+	aObject := aJsonObject;
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>12, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>7, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL, theParent=>NULL,	theNext=>2,			theName=>'fname',	theString=>'john');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'0', theSub=>NULL, theParent=>NULL,	theNext=>3,			theName=>'mname');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL, theParent=>NULL,	theNext=>4,			theName=>'lname',	theString=>'doe');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'A', theSub=>5,	theParent=>NULL,	theNext=>7,			theName=>'email');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL, theParent=>4,		theNext=>6,			theName=>NULL,		theString=>'j.doe@gmail.com');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL, theParent=>4,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'O', theSub=>8,	theParent=>NULL,	theNext=>NULL,		theName=>'address');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'A', theSub=>9,	theParent=>7,		theNext=>10,		theName=>'street');
+			checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'S', theSub=>NULL, theParent=>8,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>11,		theName=>'city',	theString=>'los angeles');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>12,		theName=>'state',	theString=>'ca');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	aJsonString,
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#9';
+	aObject := json_object();
+	aObject.put(theName=>'p1',	theValue=>'v1');
+	aObject.put(theName=>'p2',	theValue=>aJsonObject);
+	aObject.put(theName=>'p3',	theValue=>'v3');
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>15, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>15, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'O', theSub=>3,	theParent=>NULL,	theNext=>15,		theName=>'p2');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL, theParent=>2,		theNext=>4,			theName=>'fname',	theString=>'john');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'0', theSub=>NULL, theParent=>2,		theNext=>5,			theName=>'mname');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL, theParent=>2,		theNext=>6,			theName=>'lname',	theString=>'doe');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'A', theSub=>7,	theParent=>2,		theNext=>9,			theName=>'email');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'S', theSub=>NULL, theParent=>6,		theNext=>8,			theName=>NULL,		theString=>'j.doe@gmail.com');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'S', theSub=>NULL, theParent=>6,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+		checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'O', theSub=>10,	theParent=>2,		theNext=>NULL,		theName=>'address');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'A', theSub=>11,	theParent=>9,		theNext=>12,		theName=>'street');
+				checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL, theParent=>10,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>13,		theName=>'city',	theString=>'los angeles');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>13,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>14,		theName=>'state',	theString=>'ca');
+			checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>14,		theType=>'S', theSub=>NULL,	theParent=>9,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>15,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>NULL,		theName=>'p3',		theString=>'v3');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":'||aJsonString||',"p3":"v3"}',
+					theNullOK	=>	TRUE
+					);
+
+	aTitle := 'duplicates#10';
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>15, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>15, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	aObject.put(theName=>'p3',	theValue=>'v3!');
+	aObject.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p1":"v1","p2":'||aJsonString||',"p3":"v3!"}',
+					theNullOK	=>	TRUE
+					);
+
+	-- repeat put
+	aObject := json_object();
+	aObject.put(theName=>'p', theValue=>0);
+	i := 0;
+	WHILE (i < 1000) LOOP
+		i := i + 1;
+
+		aTitle := 'repeat#'||i;
+		aObject.put(theName=>'p', theValue=>i);
+		UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>1, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+		UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>1, theComputed=>aObject.lastID, theNullOK=>TRUE);
+		checkNode(theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1, theType=>'N', theSub=>NULL, theParent=>NULL, theNext=>NULL, theName=>'p', theNumber=>i);
+		aObject.to_clob(theLobBuf=>aLob);
+		UT_util.eqLOB(	theTitle	=>	aTitle,
+						theComputed	=>	aLob,
+						theExpected	=>	'{"p":'||i||'}',
+						theNullOK	=>	TRUE
+						);
+	END LOOP;
+	aTitle := 'repeat#done';
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>1, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>1, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1, theType=>'N', theSub=>NULL, theParent=>NULL, theNext=>NULL, theName=>'p', theNumber=>i);
+	UT_util.eqLOB(	theTitle	=>	aTitle,
+					theComputed	=>	aLob,
+					theExpected	=>	'{"p":'||i||'}',
+					theNullOK	=>	TRUE
+					);
+
+	--	cleanup
+	dbms_lob.freetemporary(aJsonString);
+	dbms_lob.freetemporary(aLob);
+END UT_Duplicates;
+
+----------------------------------------------------------
 --	UT_Array (private)
 --
 PROCEDURE UT_Array
@@ -531,6 +1133,8 @@ IS
 	aArray2			json_array	:=	json_array();
 
 	aLob			CLOB		:=	empty_clob();
+
+	aDate			DATE;
 BEGIN
 	UT_util.module('UT_Array');
 
@@ -550,14 +1154,15 @@ BEGIN
 	aArray.append();
 	aArray.append('string');
 	aArray.append(47.11);
-	aArray.append(TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS'));
+	aDate := TO_DATE('20141111 111213', 'YYYYMMDD HH24MISS');
+	aArray.append(aDate);
 	aArray.append(FALSE);
 	aArray.append(aObject);
 	json_utils.validate(aArray.nodes);
 	aArray.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'values',
 					theComputed	=>	aLob,
-					theExpected	=>	'[null,"string",47.11,"2014-11-11T11:12:13.000Z",false,{}]',
+					theExpected	=>	'[null,"string",47.11,"'||toJSON(aDate)||'",false,{}]',
 					theNullOK	=>	FALSE
 					);
 
@@ -756,9 +1361,9 @@ BEGIN
 END UT_BigObject;
 
 ----------------------------------------------------------
---	UT_ParseObject (private)
+--	UT_ParseBasic (private)
 --
-PROCEDURE UT_ParseObject
+PROCEDURE UT_ParseBasic
 IS
 	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
 	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
@@ -777,13 +1382,12 @@ IS
 	END addPair;
 
 BEGIN
-	UT_util.module('UT_ParseObject');
+	UT_util.module('UT_ParseBasic');
 
 	--	allocate clob
 	dbms_lob.createtemporary(aLob, TRUE);
 
-	addPair('{}');
-	addPair(' {  } ');
+	addPair('{  }');
 	addPair('{"p1": null}');
 	addPair('{"p1": "v1"}');
 	addPair('{"p1": -0.4711}');
@@ -815,170 +1419,7 @@ BEGIN
 
 	--	free temporary CLOB
 	dbms_lob.freetemporary(aLob);
-END UT_ParseObject;
-
-----------------------------------------------------------
---	UT_ParseArray (private)
---
-PROCEDURE UT_ParseArray
-IS
-	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
-	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
-
-	aList		TestValueList;
-	aArray		json_array			:=	json_array();
-	aLob		CLOB				:=	empty_clob();
-	i			BINARY_INTEGER;
-
-	PROCEDURE addPair(theValue IN VARCHAR2, theResult IN VARCHAR2 DEFAULT NULL)
-	IS
-		c	BINARY_INTEGER	:=	aList.COUNT + 1;
-	BEGIN
-		aList(c).v := theValue;
-		aList(c).r := NVL(theResult, REPLACE(theValue, ' ', ''));
-	END addPair;
-
-BEGIN
-	UT_util.module('UT_ParseArray');
-
-	--	allocate clob
-	dbms_lob.createtemporary(aLob, TRUE);
-
-	addPair('[]');
-	addPair(' [  ] ');
-	addPair('[null]');
-	addPair('["v1"]');
-	addPair('[-0.4711]');
-	addPair('[true]');
-	addPair('[false]');
-	addPair('["v1", 2, true]');
-	addPair('[[{"a1p1": "a1v1", "a1p2": {}}, {"a2p1": "a2v2", "a2p2": []}, {"a3p1": "a3v1", "a3p2": [1, 2, 3]}]]');
-	addPair('[{}]');
-	addPair('[[]]');
-	addPair('[[{}, {}, {}, [[], {}, [[]]]]]');
-
-	FOR i IN 1 .. aList.COUNT LOOP
-		-- parse the json string
-		aArray := json_array(aList(i).v);
-		
-		-- validate the resulting object
-		json_utils.validate(aArray.nodes);
-		
-		-- convert the object back to a version string
-		aArray.to_clob(aLob);
-
-		-- test
-		UT_util.eqLOB(	theTitle	=>	'#'||i||': '||aList(i).v,
-						theComputed	=>	aLob,
-						theExpected	=>	aList(i).r,
-						theNullOK	=>	TRUE
-						);
-	END LOOP;
-
-	--	free temporary CLOB
-	dbms_lob.freetemporary(aLob);
-END UT_ParseArray;
-
-----------------------------------------------------------
---	UT_ParseAny (private)
---
-PROCEDURE UT_ParseAny
-IS
-	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
-	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
-
-	aList		TestValueList;
-
-	aValue		json_value			:=	json_value();
-	aStrBuf		VARCHAR2(32767);
-	aLob		CLOB				:=	empty_clob();
-
-	i			PLS_INTEGER;
-
-	PROCEDURE addPair(theValue IN VARCHAR2, theResult IN VARCHAR2 DEFAULT NULL)
-	IS
-		c	BINARY_INTEGER	:=	aList.COUNT + 1;
-	BEGIN
-		aList(c).v := theValue;
-		aList(c).r := NVL(theResult, REPLACE(theValue, ' ', ''));
-	END addPair;
-
-BEGIN
-	UT_util.module('UT_ParseAny');
-
-	--	allocate clob
-	dbms_lob.createtemporary(aLob, TRUE);
-
-	addPair('{}');
-	addPair(' {  } ');
-	addPair('{"p1": null}');
-	addPair('{"p1": "v1"}');
-	addPair('{"p1": -0.4711}');
-	addPair('{"p1": true}');
-	addPair('{"p1": false}');
-	addPair('{"p1": "v1", "p2": 2, "p3": true}');
-	addPair('{"p1": [{"a1p1": "a1v1", "a1p2": {}}, {"a2p1": "a2v2", "a2p2": []}, {"a3p1": "a3v1", "a3p2": [1, 2, 3]}]}');
-	addPair('{"p1": {}}');
-	addPair('{"p1": []}');
-	addPair('{"p1": [{}, {}, {}, [[], {}, [[]]]]}');
-	addPair('[]');
-	addPair(' [  ] ');
-	addPair('[null]');
-	addPair('["v1"]');
-	addPair('[-0.4711]');
-	addPair('[true]');
-	addPair('[false]');
-	addPair('["v1", 2, true]');
-	addPair('[[{"a1p1": "a1v1", "a1p2": {}}, {"a2p1": "a2v2", "a2p2": []}, {"a3p1": "a3v1", "a3p2": [1, 2, 3]}]]');
-	addPair('[{}]');
-	addPair('[[]]');
-	addPair('[[{}, {}, {}, [[], {}, [[]]]]]');
-
-	FOR i IN 1 .. aList.COUNT LOOP
-		-- use parses
-		aValue := json_parser.parse_any(aList(i).v);
-		json_utils.validate(aValue.nodes);
-
-		json_utils.erase_clob(aLob);
-		aStrBuf := NULL;
-		IF (aValue.typ = 'O') THEN
-			json_utils.object_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
-		ELSIF (aValue.typ = 'A') THEN
-			json_utils.array_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
-		ELSE
-			NULL;
-		END IF;
-
-		UT_util.eqLOB(	theTitle	=>	'#'||i||': '||aList(i).v,
-						theComputed	=>	aLob,
-						theExpected	=>	aList(i).r,
-						theNullOK	=>	TRUE
-						);
-
-		-- use json_value to parse
-		aValue := json_value(aList(i).v);
-		json_utils.validate(aValue.nodes);
-
-		json_utils.erase_clob(aLob);
-		aStrBuf := NULL;
-		IF (aValue.typ = 'O') THEN
-			json_utils.object_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
-		ELSIF (aValue.typ = 'A') THEN
-			json_utils.array_to_clob(theLobBuf=>aLob, theStrBuf=>aStrBuf, theNodes=>aValue.nodes, theNodeID=>aValue.nodes.FIRST);
-		ELSE
-			NULL;
-		END IF;
-
-		UT_util.eqLOB(	theTitle	=>	'#'||i||': '||aList(i).v,
-						theComputed	=>	aLob,
-						theExpected	=>	aList(i).r,
-						theNullOK	=>	TRUE
-						);
-	END LOOP;
-
-	--	free temporary CLOB
-	dbms_lob.freetemporary(aLob);
-END UT_ParseAny;
+END UT_ParseBasic;
 
 ----------------------------------------------------------
 --	UT_ParseSimple (private)
@@ -1057,55 +1498,63 @@ END UT_ParseSimple;
 --
 PROCEDURE UT_ParseComplex
 IS
-	JSONSource	CONSTANT	VARCHAR2(32767)		:=	'{
-    "layout": "layout1",
-    "data": [
-        {
-            "id": 1,
-            "column": "first",
-            "metadata": {}
-        },
-        {
-            "id": 2,
-            "column": "second",
-            "metadata": {}
-        },
-        {
-            "id": 3,
-            "column": "first",
-            "metadata": {
-                "url": "http://google.com",
-                "height": "200px"
-            }
-        }
-    ]
-}';
+	aJsonObject		json_object				:=	json_object();
+	aJsonString		CLOB					:=	empty_clob();
 
-	JSONResult	CONSTANT	VARCHAR2(32767)		:=	'{"layout":"layout1","data":[{"id":1,"column":"first","metadata":{}},{"id":2,"column":"second","metadata":{}},{"id":3,"column":"first","metadata":{"url":"http://google.com","height":"200px"}}]}';
+	aObject			json_object				:=	json_object();
+	aLob			CLOB					:=	empty_clob();
 
-	aObject					json_object			:=	json_object();
-
-	aLob					CLOB				:=	empty_clob();
-
+	aTitle			VARCHAR2(32767)			:=	'parsed nodes';
 BEGIN
 	UT_util.module('UT_ParseComplex');
 
-	--	allocate clob
+	-- allocate clob
+	dbms_lob.createtemporary(aJsonString, TRUE);
 	dbms_lob.createtemporary(aLob, TRUE);
 
-	--	parse
-	aObject := json_object(JSONSource);
+	-- construct a complex json object
+	getComplexObject(theJsonObject=>aJsonObject, theJsonString=>aJsonString);
+
+	-- convert json object to string
+	aJsonObject.to_clob(theLobBuf=>aLob);
+	aJsonObject := json_object();
+
+	-- parse json string
+	aObject := json_object(aLob);
 	json_utils.validate(aObject.nodes);
 
-	--	serialize again
+	-- validate nodes in parse object
+	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>12, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
+
+	/*
+
+		WHEN PARSING A COMPLEX OBJECT, THE "PAR" PROPERTIES ARE NOT (YET) FILLED CORRECTLY FOR OBJECT NODES!!!
+
+	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>7, theComputed=>aObject.lastID, theNullOK=>TRUE);
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL, theParent=>NULL,	theNext=>2,			theName=>'fname',	theString=>'john');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>2,		theType=>'0', theSub=>NULL, theParent=>NULL,	theNext=>3,			theName=>'mname');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>3,		theType=>'S', theSub=>NULL, theParent=>NULL,	theNext=>4,			theName=>'lname',	theString=>'doe');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>4,		theType=>'A', theSub=>5,	theParent=>NULL,	theNext=>7,			theName=>'email');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>5,		theType=>'S', theSub=>NULL, theParent=>4,		theNext=>6,			theName=>NULL,		theString=>'j.doe@gmail.com');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>6,		theType=>'S', theSub=>NULL, theParent=>4,		theNext=>NULL,		theName=>NULL,		theString=>'john.doe@gmail.com');
+	checkNode(			theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>7,		theType=>'O', theSub=>8,	theParent=>NULL,	theNext=>NULL,		theName=>'address');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>8,		theType=>'A', theSub=>9,	theParent=>7,		theNext=>10,		theName=>'street');
+			checkNode(	theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>9,		theType=>'S', theSub=>NULL, theParent=>8,		theNext=>NULL,		theName=>NULL,		theString=>'n. russmore av.');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>10,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>11,		theName=>'city',	theString=>'los angeles');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>11,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>12,		theName=>'state',	theString=>'ca');
+		checkNode(		theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>12,		theType=>'S', theSub=>NULL,	theParent=>7,		theNext=>NULL,		theName=>'zip',		theString=>'90004');
+	*/
+
+	-- compare strings
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'equal',
 					theComputed	=>	aLob,
-					theExpected	=>	JSONResult,
+					theExpected	=>	aJsonString,
 					theNullOK	=>	FALSE
 					);
 
-	--	free temporary CLOB
+	-- free temporary CLOB
+	dbms_lob.freetemporary(aJsonString);
 	dbms_lob.freetemporary(aLob);
 END UT_ParseComplex;
 
@@ -1165,6 +1614,9 @@ BEGIN
 					theExpected	=>	'{"layout":"layout1","data":[{"id":1,"column":"first","metadata":{}},{"id":2,"column":"second","metadata":{}},{"id":3,"column":"first","metadata":{"url":"http://google.com","height":"200px"}}]}',
 					theNullOK	=>	TRUE
 					);
+
+	json_debug.output(aMainObject);
+	json_debug.output(aMainObject.get('layout'));
 
 	--	tests
 	UT_util.eq(	theTitle	=>	'layout',
@@ -1268,6 +1720,131 @@ BEGIN
 END UT_Debug;
 
 ----------------------------------------------------------
+--	getJSON
+--
+PROCEDURE getJSON(theCount IN NUMBER)
+IS
+	aObject			json_object	:=	json_object();
+	aArray			json_array	:=	json_array();
+BEGIN
+	UT_util.module('getJSON');
+
+	--	create subobject
+	aObject.put('string', 'this is a string value');
+	aObject.put('number', 47.11);
+	aObject.put('boolean', TRUE);
+
+	--	create object
+	FOR i IN 1 .. theCount LOOP
+		aArray.append(aObject);
+	END LOOP;
+
+	--	output array
+	aArray.htp();
+END getJSON;
+
+----------------------------------------------------------
+--	checkNode (private) 
+--
+PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN json_nodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL)
+IS
+	aTitle	VARCHAR2(32767) := '#'||theNodeID;
+BEGIN
+	IF (theTitle IS NOT NULL) THEN
+		aTitle := theTitle||': '||aTitle;
+	END IF;
+
+	UT_util.ok(theTitle=>aTitle||'(nodid='||theNodeID||')', theValue=>theNodeID >= 1 AND theNodeID <= theNodes.COUNT);
+
+	UT_util.eq(theTitle=>aTitle||'(type)',		theExpected=>theType,	theComputed=>theNodes(theNodeID).typ, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(name)',		theExpected=>theName,	theComputed=>theNodes(theNodeID).nam, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(string)',	theExpected=>theString,	theComputed=>theNodes(theNodeID).str, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(number)',	theExpected=>theNumber,	theComputed=>theNodes(theNodeID).num, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(date)',		theExpected=>theDate,	theComputed=>theNodes(theNodeID).dat, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(parent)',	theExpected=>theParent,	theComputed=>theNodes(theNodeID).par, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(next)',		theExpected=>theNext,	theComputed=>theNodes(theNodeID).nex, theNullOK=>TRUE);
+	UT_util.eq(theTitle=>aTitle||'(sub)',		theExpected=>theSub,	theComputed=>theNodes(theNodeID).sub, theNullOK=>TRUE);
+END checkNode;
+
+----------------------------------------------------------
+--	getComplexObject (private)
+--
+PROCEDURE getComplexObject(theJsonObject IN OUT NOCOPY json_object, theJsonString IN OUT NOCOPY CLOB)
+IS
+	aObj	json_object	:=	json_object();
+	aArr	json_array	:=	json_array();
+BEGIN
+	-- clean
+	theJsonObject := json_object();
+
+	-- create object
+	theJsonObject.put('fname', 'john');
+	theJsonObject.put('mname');
+	theJsonObject.put('lname', 'doe');
+	aArr := json_array();
+	aArr.append('j.doe@gmail.com');
+	aArr.append('john.doe@gmail.com');
+	theJsonObject.put('email', aArr.to_json_value());
+	aArr := json_array();
+	aArr.append('n. russmore av.');
+	aObj := json_object();
+	aObj.put('street', aArr.to_json_value());
+	aObj.put('city', 'los angeles');
+	aObj.put('state', 'ca');
+	aObj.put('zip', '90004');
+	theJsonObject.put('address', aObj.to_json_value());
+
+	-- convert to string
+	theJsonObject.to_clob(theLobBuf=>theJsonString);
+END getComplexObject;
+
+----------------------------------------------------------
+--	clearLob (private)
+--
+PROCEDURE clearLob(theLob IN OUT NOCOPY CLOB)
+IS
+BEGIN
+	IF (dbms_lob.getlength(lob_loc=>theLob) > 0) THEN
+		dbms_lob.trim(lob_loc=>theLob, newlen=>0);
+	END IF;
+END clearLob;
+
+----------------------------------------------------------
+--	setLob (private)
+--
+PROCEDURE setLob(theLob IN OUT NOCOPY CLOB, theValue IN VARCHAR2)
+IS
+BEGIN
+	clearLob(theLob=>theLob);
+	IF (theValue IS NOT NULL) THEN
+		dbms_lob.append(dest_lob=>theLob, src_lob=>TO_CLOB(theValue));
+	END IF;
+END setLob;
+
+----------------------------------------------------------
+--	fillLob (private)
+--
+PROCEDURE fillLob(theLob IN OUT NOCOPY CLOB)
+IS
+	CHUNK CONSTANT CLOB := TO_CLOB(LPAD('#', 32767, '#'));
+BEGIN
+	clearLob(theLob=>theLob);
+
+	FOR i IN 1 .. 2 LOOP
+		dbms_lob.append(dest_lob=>theLob, src_lob=>CHUNK);
+	END LOOP;
+END fillLob;
+
+----------------------------------------------------------
+--	toJSON (private)
+--
+FUNCTION toJSON(theDate IN DATE) RETURN VARCHAR2
+IS
+BEGIN
+	RETURN TO_CHAR(theDate, 'FXYYYY-MM-DD"T"HH24:MI:SS');
+END toJSON;
+
+----------------------------------------------------------
 --	Run unit tests
 --
 PROCEDURE run
@@ -1275,16 +1852,17 @@ IS
 BEGIN
 	UT_escape;
 	UT_values;
+	UT_LobValues;
 	UT_Nodes;
+	UT_RemoveNode;
 	UT_getter;
 	UT_Object;
+	UT_Duplicates;
 	UT_Array;
 	UT_DeepRecursion;
 	UT_ComplexObject;
 	UT_BigObject;
-	UT_ParseObject;
-	UT_ParseArray;
-	UT_ParseAny;
+	UT_ParseBasic;
 	UT_ParseSimple;
 	UT_ParseComplex;
 	UT_ParseAndDestruct;

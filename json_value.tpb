@@ -15,19 +15,6 @@ BEGIN
 END json_value;
 
 ----------------------------------------------------------
---	json_value
---
-CONSTRUCTOR FUNCTION json_value(SELF IN OUT NOCOPY json_value, theJSONString IN CLOB) RETURN SELF AS RESULT
-IS
-	value	json_value	:=	json_value();
-BEGIN
-	value		:=	json_parser.parse_any(theJSONString);
-	SELF.typ	:=	value.typ;
-	SELF.nodes	:=	value.nodes;
-	RETURN;
-END json_value;
-
-----------------------------------------------------------
 --	get_type
 --
 MEMBER FUNCTION get_type RETURN VARCHAR2
@@ -35,18 +22,19 @@ IS
 BEGIN
 	IF (SELF.typ IS NULL) THEN
 		CASE SELF.nodes(1).typ
-		WHEN '0' THEN RETURN 'NULL';
-		WHEN 'S' THEN RETURN 'STRING';
-		WHEN 'N' THEN RETURN 'NUMBER';
-		WHEN 'D' THEN RETURN 'DATE';
-		WHEN 'B' THEN RETURN 'BOOLEAN';
+		WHEN json_const.NODE_TYPE_NULL THEN RETURN 'NULL';
+		WHEN json_const.NODE_TYPE_STRING THEN RETURN 'STRING';
+		WHEN json_const.NODE_TYPE_LOB THEN RETURN 'LOB';
+		WHEN json_const.NODE_TYPE_NUMBER THEN RETURN 'NUMBER';
+		WHEN json_const.NODE_TYPE_DATE THEN RETURN 'DATE';
+		WHEN json_const.NODE_TYPE_BOOLEAN THEN RETURN 'BOOLEAN';
 		ELSE
 			raise_application_error(-20100, 'json_node exception: node type ('||SELF.nodes(1).typ||') invalid');
 			RETURN NULL;
 		END CASE;
-	ELSIF (SELF.typ = 'O') THEN
+	ELSIF (SELF.typ = json_const.NODE_TYPE_OBJECT) THEN
 		RETURN 'OBJECT';
-	ELSIF (SELF.typ = 'A') THEN
+	ELSIF (SELF.typ = json_const.NODE_TYPE_ARRAY) THEN
 		RETURN 'ARRAY';
 	ELSE
 		raise_application_error(-20100, 'json_node exception: node type ('||SELF.typ||') invalid');
@@ -66,16 +54,39 @@ END get_name;
 ----------------------------------------------------------
 --	get_string
 --
-MEMBER FUNCTION get_string(theMaxByteSize NUMBER DEFAULT NULL, theMaxCharSize NUMBER DEFAULT NULL) RETURN VARCHAR2
+MEMBER FUNCTION get_string RETURN VARCHAR2
 IS
 BEGIN
 	IF (SELF.is_string()) THEN
 		RETURN SELF.nodes(1).str;
+	ELSIF (SELF.is_lob()) THEN
+		IF (dbms_lob.getlength(lob_loc=>SELF.nodes(1).lob) <= 32767) THEN
+			RETURN SELF.nodes(1).lob;
+		ELSE
+			raise_application_error(-20100, 'json_node exception: attempt to get a lob > 32767 as a string');
+			RETURN NULL;
+		END IF;
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a string from a node with type ('||SELF.typ||')');
+		raise_application_error(-20100, 'json_node exception: attempt to get a string from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_string;
+
+----------------------------------------------------------
+--	get_lob
+--
+MEMBER FUNCTION get_lob RETURN CLOB
+IS
+BEGIN
+	IF (SELF.is_lob()) THEN
+		RETURN SELF.nodes(1).lob;
+	ELSIF (SELF.is_string()) THEN
+		RETURN TO_CLOB(SELF.nodes(1).str);
+	ELSE
+		raise_application_error(-20100, 'json_node exception: attempt to get a lob from a node with type ('||SELF.get_type||')');
+		RETURN NULL;
+	END IF;
+END get_lob;
 
 ----------------------------------------------------------
 --	get_number
@@ -86,7 +97,7 @@ BEGIN
 	IF (SELF.is_number()) THEN
 		RETURN SELF.nodes(1).num;
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a number from a node with type ('||SELF.typ||')');
+		raise_application_error(-20100, 'json_node exception: attempt to get a number from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_number;
@@ -100,7 +111,7 @@ BEGIN
 	IF (SELF.is_date()) THEN
 		RETURN SELF.nodes(1).dat;
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a date from a node with type ('||SELF.typ||')');
+		raise_application_error(-20100, 'json_node exception: attempt to get a date from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_date;
@@ -114,7 +125,7 @@ BEGIN
 	IF (SELF.is_bool()) THEN
 		RETURN (SELF.nodes(1).num = 1);
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a boolean from a node with type ('||SELF.typ||')');
+		raise_application_error(-20100, 'json_node exception: attempt to get a boolean from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_bool;
@@ -145,6 +156,15 @@ IS
 BEGIN
 	RETURN (SELF.get_type = 'STRING');
 END is_string;
+
+----------------------------------------------------------
+--	is_lob
+--
+MEMBER FUNCTION is_lob RETURN BOOLEAN
+IS
+BEGIN
+	RETURN (SELF.get_type = 'LOB');
+END is_lob;
 
 ----------------------------------------------------------
 --	is_number

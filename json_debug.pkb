@@ -2,9 +2,9 @@ CREATE OR REPLACE
 PACKAGE BODY json_debug
 IS
 
-PROCEDURE dumpRaw(theNodes IN json_nodes, theResult IN OUT NOCOPY json_debug.debugTableType);
-PROCEDURE dump(theNodes IN json_nodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY json_debug.debugTableType);
-FUNCTION dump(theNodes IN json_nodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN json_debug.debugRecordType;
+PROCEDURE dumpRaw(theNodes IN json_nodes, theResult IN OUT NOCOPY debugTableType);
+PROCEDURE dump(theNodes IN json_nodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY debugTableType);
+FUNCTION dump(theNodes IN json_nodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN debugRecordType;
 FUNCTION lalign(theString IN VARCHAR2, theSize IN BINARY_INTEGER) RETURN VARCHAR2;
 FUNCTION ralign(theString IN VARCHAR2, theSize IN BINARY_INTEGER) RETURN VARCHAR2;
 
@@ -43,7 +43,7 @@ BEGIN
 	IF (aTitle IS NOT NULL) THEN
 		aTitle := aTitle || ' - ';
 	END IF;
-	aTitle := aTitle || 'json_object';
+	aTitle := aTitle || 'json_object with '||theObject.nodes.COUNT||' nodes and lastID is '||theObject.lastID;
 
 	output(theNodes=>theObject.nodes, theRawFlag=>theRawFlag, theTitle=>aTitle);
 END output;
@@ -58,7 +58,7 @@ BEGIN
 	IF (aTitle IS NOT NULL) THEN
 		aTitle := aTitle || ' - ';
 	END IF;
-	aTitle := aTitle || 'json_array';
+	aTitle := aTitle || 'json_array with '||theArray.nodes.COUNT||' nodes and lastID is '||theArray.lastID;
 
 	output(theNodes=>theArray.nodes, theRawFlag=>theRawFlag, theTitle=>aTitle);
 END output;
@@ -68,7 +68,7 @@ END output;
 --
 PROCEDURE output(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
 IS
-	r	json_debug.debugTableType	:=	json_debug.debugTableType();
+	r	debugTableType	:=	debugTableType();
 	i	BINARY_INTEGER;
 	l	BINARY_INTEGER;
 	n	BINARY_INTEGER	:=	1;
@@ -79,7 +79,7 @@ IS
 		dbms_output.put_line(	lalign(theLevel,				10) || ' ' ||
 								ralign(theNo,			 		 5) || ' ' ||
 								ralign(theNodeID,				10) || ' ' ||
-								lalign(theType,					10) || ' ' ||
+								lalign(theType,					15) || ' ' ||
 								lalign(NVL(theName, '-'),		30) || ' ' ||
 								ralign(NVL(theArrayIndex, '-'),	 5) || ' ' ||
 								ralign(NVL(theParentID, '-'),	10) || ' ' ||
@@ -95,20 +95,20 @@ BEGIN
 	END IF;
 
 	IF (theRawFlag) THEN
-		json_debug.dumpRaw(theNodes=>theNodes, theResult=>r);
+		dumpRaw(theNodes=>theNodes, theResult=>r);
 	ELSE
-		json_debug.dump(theNodes=>theNodes, theFirstNodeID=>theNodes.FIRST, theLevel=>l, theResult=>r);
+		dump(theNodes=>theNodes, theFirstNodeID=>theNodes.FIRST, theLevel=>l, theResult=>r);
 	END IF;
 
-	output_line('Level',      '#',     'Node#',      'Type',       'Name',                           'Index', 'Parent',     'Next',       'Sub',        'Value');
-	output_line('----------', '-----', '----------', '----------', '------------------------------', '-----', '----------', '----------', '----------', '------------------------------------------------------------');
+	output_line('Level',      '#',     'Node#',      'Type',            'Name',                           'Index', 'Parent',     'Next',       'Sub',        'Value');
+	output_line('----------', '-----', '----------', '---------------', '------------------------------', '-----', '----------', '----------', '----------', '------------------------------------------------------------');
 
 	i := r.FIRST;
 	WHILE (i IS NOT NULL) LOOP
 		output_line(	theLevel		=>	RPAD('*', NVL(r(i).nodeLevel, 0) + 1, '*'),
 						theNo			=>	n,
 						theNodeID		=>	r(i).nodeID,
-						theType			=>	r(i).nodeType,
+						theType			=>	r(i).nodeTypeName||'('||r(i).nodeType||')',
 						theArrayIndex	=>	r(i).arrayIndex,
 						theValue		=>	r(i).nodeValue,
 						theParentID		=>	r(i).parentID,
@@ -129,16 +129,16 @@ END output;
 ----------------------------------------------------------
 --	asTable
 --
-FUNCTION asTable(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE) RETURN json_debug.debugTableType PIPELINED
+FUNCTION asTable(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE) RETURN debugTableType PIPELINED
 IS
-	r	json_debug.debugTableType	:=	json_debug.debugTableType();
+	r	debugTableType	:=	debugTableType();
 	i	BINARY_INTEGER;
 	l	BINARY_INTEGER;
 BEGIN
 	IF (theRawFlag) THEN
-		json_debug.dumpRaw(theNodes=>theNodes, theResult=>r);
+		dumpRaw(theNodes=>theNodes, theResult=>r);
 	ELSE
-		json_debug.dump(theNodes=>theNodes, theFirstNodeID=>theNodes.FIRST, theLevel=>l, theResult=>r);
+		dump(theNodes=>theNodes, theFirstNodeID=>theNodes.FIRST, theLevel=>l, theResult=>r);
 	END IF;
 
 	i := r.FIRST;
@@ -153,14 +153,14 @@ END asTable;
 ----------------------------------------------------------
 --	dumpRaw (private)
 --
-PROCEDURE dumpRaw(theNodes IN json_nodes, theResult IN OUT NOCOPY json_debug.debugTableType)
+PROCEDURE dumpRaw(theNodes IN json_nodes, theResult IN OUT NOCOPY debugTableType)
 IS
 	i	BINARY_INTEGER;
 BEGIN
 	i := theNodes.FIRST;
 	WHILE (i IS NOT NULL) LOOP
 		theResult.EXTEND(1);
-		theResult(theResult.LAST) := json_debug.dump(theNodes=>theNodes, theNodeID=>i, theLevel=>NULL);
+		theResult(theResult.LAST) := dump(theNodes=>theNodes, theNodeID=>i, theLevel=>NULL);
 		i := theNodes.NEXT(i);
 	END LOOP;
 END dumpRaw;
@@ -168,7 +168,7 @@ END dumpRaw;
 ----------------------------------------------------------
 --	dump (private)
 --
-PROCEDURE dump(theNodes IN json_nodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY json_debug.debugTableType)
+PROCEDURE dump(theNodes IN json_nodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY debugTableType)
 IS
 	l	BINARY_INTEGER	:=	NVL(theLevel, 0);
 	i	BINARY_INTEGER	:=	theFirstNodeID;
@@ -176,14 +176,14 @@ BEGIN
 	WHILE (i IS NOT NULL) LOOP
 		IF (theNodes(i).typ IN ('O', 'A')) THEN
 			theResult.EXTEND(1);
-			theResult(theResult.LAST) := json_debug.dump(theNodes=>theNodes, theNodeID=>i, theLevel=>l);
+			theResult(theResult.LAST) := dump(theNodes=>theNodes, theNodeID=>i, theLevel=>l);
 
 			l := l + 1;
-			json_debug.dump(theNodes=>theNodes, theFirstNodeID=>theNodes(i).sub, theLevel=>l, theResult=>theResult);
+			dump(theNodes=>theNodes, theFirstNodeID=>theNodes(i).sub, theLevel=>l, theResult=>theResult);
 			l := l - 1;
 		ELSE
 			theResult.EXTEND(1);
-			theResult(theResult.LAST) := json_debug.dump(theNodes=>theNodes, theNodeID=>i, theLevel=>l);
+			theResult(theResult.LAST) := dump(theNodes=>theNodes, theNodeID=>i, theLevel=>l);
 		END IF;
 
 		i := theNodes(i).nex;
@@ -193,9 +193,10 @@ END dump;
 ----------------------------------------------------------
 --	dump (private)
 --
-FUNCTION dump(theNodes IN json_nodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN json_debug.debugRecordType
+FUNCTION dump(theNodes IN json_nodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN debugRecordType
 IS
-	r	json_debug.debugRecordType;
+	n	CONSTANT	json_node					:=	theNodes(theNodeID);
+	r				debugRecordType;
 
 	FUNCTION getArrayIndex(theNodes IN json_nodes, theNodeID IN NUMBER) RETURN NUMBER
 	IS
@@ -223,46 +224,62 @@ IS
 BEGIN
 	--	type independent information
 	r.nodeLevel		:=	theLevel;
+	r.nodeType		:=	n.typ;
 	r.nodeID		:=	theNodeID;
-	r.nodeName		:=	theNodes(theNodeID).nam;
-	r.parentID		:=	theNodes(theNodeID).par;
-	r.nextID		:=	theNodes(theNodeID).nex;
-	r.subNodeID		:=	theNodes(theNodeID).sub;
+	r.nodeName		:=	n.nam;
+	r.parentID		:=	n.par;
+	r.nextID		:=	n.nex;
+	r.subNodeID		:=	n.sub;
 
 	--	compute the array index
 	r.arrayIndex	:=	getArrayIndex(theNodes=>theNodes, theNodeID=>theNodeID);
 
 	--	type dependent information
-	CASE theNodes(theNodeID).typ
-	WHEN '0' THEN
-		r.nodeType	:=	'NULL';
-		r.nodeValue	:=	NULL;
-	WHEN 'S' THEN
-		r.nodeType	:=	'STRING';
-		IF (theNodes(theNodeID).str IS NOT NULL) THEN
-			r.nodeValue	:=	SUBSTR(theNodes(theNodeID).str, 1, 2000);
+	CASE n.typ
+
+	WHEN json_const.NODE_TYPE_NULL THEN
+		r.nodeTypeName	:=	'NULL';
+		r.nodeValue		:=	NULL;
+
+	WHEN json_const.NODE_TYPE_STRING THEN
+		r.nodeTypeName	:=	'STRING';
+		IF (n.str IS NOT NULL) THEN
+			r.nodeValue	:= SUBSTR(n.str, 1, 2000);
 		END IF;
-	WHEN 'N' THEN
-		r.nodeType := 'NUMBER';
-		IF (theNodes(theNodeID).num IS NOT NULL) THEN
-			r.nodeValue := TO_CHAR(theNodes(theNodeID).num);
+
+	WHEN json_const.NODE_TYPE_LOB THEN
+		r.nodeTypeName	:=	'LOB';
+		IF (dbms_lob.getlength(lob_loc=>n.lob) > 0) THEN
+			r.nodeValue	:= dbms_lob.substr(lob_loc=>n.lob, amount=>2000, offset=>1);
 		END IF;
-	WHEN 'D' THEN
-		r.nodeType := 'DATE';
-		IF (theNodes(theNodeID).dat IS NOT NULL) THEN
-			r.nodeValue := TO_CHAR(theNodes(theNodeID).dat, 'YYYYMMDD HH24MISS');
+
+	WHEN json_const.NODE_TYPE_NUMBER THEN
+		r.nodeTypeName := 'NUMBER';
+		IF (n.num IS NOT NULL) THEN
+			r.nodeValue := TO_CHAR(n.num);
 		END IF;
-	WHEN 'B' THEN
-		r.nodeType := 'BOOL';
-		IF (theNodes(theNodeID).num IS NOT NULL) THEN
-			r.nodeValue := CASE theNodes(theNodeID).num WHEN 1 THEN 'true' ELSE 'false' END;
+
+	WHEN json_const.NODE_TYPE_DATE THEN
+		r.nodeTypeName := 'DATE';
+		IF (n.dat IS NOT NULL) THEN
+			r.nodeValue := TO_CHAR(n.dat, 'YYYYMMDD HH24MISS');
 		END IF;
-	WHEN 'O' THEN
-		r.nodeType := '[OBJECT]';
-	WHEN 'A' THEN
-		r.nodeType := '[ARRAY]';
+
+	WHEN json_const.NODE_TYPE_BOOLEAN THEN
+		r.nodeTypeName := 'BOOL';
+		IF (n.num IS NOT NULL) THEN
+			r.nodeValue := CASE n.num WHEN 1 THEN 'true' ELSE 'false' END;
+		END IF;
+
+	WHEN json_const.NODE_TYPE_OBJECT THEN
+		r.nodeTypeName := '[OBJECT]';
+
+	WHEN json_const.NODE_TYPE_ARRAY THEN
+		r.nodeTypeName := '[ARRAY]';
+
 	ELSE
-		r.nodeType := TO_CHAR(theNodes(theNodeID).typ);
+		r.nodeType := TO_CHAR(n.typ);
+
 	END CASE;
 
 	RETURN r;
@@ -303,7 +320,6 @@ BEGIN
 		RETURN LPAD(theString, theSize, ' ');
 	END IF;
 END ralign;
-
 
 END json_debug;
 /

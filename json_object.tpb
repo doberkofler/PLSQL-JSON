@@ -1,7 +1,6 @@
 CREATE OR REPLACE
 TYPE BODY json_object IS
 
-
 ----------------------------------------------------------
 --	json_object
 --
@@ -19,7 +18,7 @@ END json_object;
 CONSTRUCTOR FUNCTION json_object(SELF IN OUT NOCOPY json_object, theData IN json_value) RETURN SELF AS result
 IS
 BEGIN
-	IF (theData.typ != 'O') THEN
+	IF (theData.typ != json_const.NODE_TYPE_OBJECT) THEN
 		raise_application_error(-20100, 'json_object exception: unable to convert node ('||theData.typ||') to an object');
 	ELSE
 		SELF.nodes	:=	theData.nodes;
@@ -34,7 +33,7 @@ END json_object;
 CONSTRUCTOR FUNCTION json_object(SELF IN OUT NOCOPY json_object, theJSONString IN CLOB) RETURN SELF AS result
 IS
 BEGIN
-	SELF.nodes	:=	json_parser.parse_object(theJSONString);
+	SELF.nodes	:=	json_parser.parser(theJSONString);
 	SELF.lastID	:=	NULL;
 	RETURN;
 END json_object;
@@ -44,48 +43,94 @@ END json_object;
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
+	-- add the node
 	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theName));
 END put;
 
 ----------------------------------------------------------
---	put
+--	put (VARCHAR2)
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN VARCHAR2)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
+	-- add the node
 	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theName, theValue));
 END put;
 
 ----------------------------------------------------------
---	put
+--	put (CLOB)
+--
+MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN CLOB)
+IS
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
+BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
+	-- add the node
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theName, theValue));
+END put;
+
+----------------------------------------------------------
+--	put (NUMBER)
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN NUMBER)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
+	-- add the node
 	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theName, theValue));
 END put;
 
 ----------------------------------------------------------
---	put
+--	put (DATE)
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN DATE)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
+	-- add the node
 	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theName, theValue));
 END put;
 
 ----------------------------------------------------------
---	put
+--	put (BOOLEAN)
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN BOOLEAN)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
+	-- add the node
 	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theName, theValue));
 END put;
 
@@ -94,10 +139,15 @@ END put;
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN json_object)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
 	--	add a new object node that will be used as the root for all the sub notes
-	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node('O', theName, NULL, NULL, NULL, NULL, NULL, NULL));
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(json_const.NODE_TYPE_OBJECT, theName, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
 
 	--	copy the sub-nodes
 	json_utils.copyNodes(theTargetNodes=>SELF.nodes, theTargetNodeID=>aNodeID, theLastID=>SELF.lastID, theName=>theName, theSourceNodes=>theValue.nodes);
@@ -108,10 +158,15 @@ END put;
 --
 MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN json_value)
 IS
-	aNodeID	BINARY_INTEGER;
+	aNodeID	BINARY_INTEGER := json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>theName);
 BEGIN
+	-- remove the existing node if we change an existing property
+	IF (aNodeID IS NOT NULL) THEN
+		SELF.lastID := json_utils.removeNode(theNodes=>SELF.nodes, theNodeID=>aNodeID);
+	END IF;
+
 	--	add a new object node that will be used as the root for all the sub notes
-	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theValue.typ, theName, NULL, NULL, NULL, NULL, NULL, NULL));
+	aNodeID := json_utils.addNode(theNodes=>SELF.nodes, theLastID=>SELF.lastID, theNode=>json_node(theValue.typ, theName, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
 
 	--	copy the sub-nodes
 	json_utils.copyNodes(theTargetNodes=>SELF.nodes, theTargetNodeID=>aNodeID, theLastID=>SELF.lastID, theName=>theName, theSourceNodes=>theValue.nodes);
@@ -126,6 +181,9 @@ BEGIN
 	RETURN json_utils.getNodeCount(theNodes=>SELF.nodes);
 END count;
 
+----------------------------------------------------------
+--	get
+--
 MEMBER FUNCTION get(SELF IN json_object, thePropertyName IN VARCHAR2) RETURN json_value
 IS
 	aNodeID	BINARY_INTEGER	:=	json_utils.getNodeIDByName(theNodes=>SELF.nodes, thePropertyName=>thePropertyName);
@@ -170,7 +228,7 @@ END get_keys;
 MEMBER FUNCTION to_json_value(SELF IN json_object) RETURN json_value
 IS
 BEGIN
-	RETURN json_value('O', SELF.nodes);
+	RETURN json_value(json_const.NODE_TYPE_OBJECT, SELF.nodes);
 END to_json_value;
 
 ----------------------------------------------------------
@@ -181,10 +239,26 @@ IS
 	aStrBuf	VARCHAR2(32767);
 BEGIN
 	IF (theEraseLob) THEN
-		json_utils.erase_clob(theLobBuf);
+		json_clob.erase(theLobBuf);
 	END IF;
 	json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
 END to_clob;
+
+----------------------------------------------------------
+--	to_text
+--
+MEMBER FUNCTION to_text(SELF IN json_object) RETURN VARCHAR2
+IS
+	aStrBuf	VARCHAR2(32767);
+	aLobLoc	CLOB;
+BEGIN
+	dbms_lob.createtemporary(lob_loc=>aLobLoc, cache=>TRUE, dur=>dbms_lob.session);
+	json_utils.object_to_clob(theLobBuf=>aLobLoc, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
+	aStrBuf := dbms_lob.substr(aLobLoc, 32767, 1);
+	dbms_lob.freetemporary(lob_loc=>aLobLoc);
+
+	RETURN aStrBuf;
+END to_text;
 
 ----------------------------------------------------------
 --	htp
@@ -198,7 +272,6 @@ BEGIN
 	json_utils.htp_output_clob(aLob, theJSONP);
 	dbms_lob.freetemporary(aLob);
 END htp;
-
 
 END;
 /

@@ -1,7 +1,7 @@
 CREATE OR REPLACE
 TYPE json_object IS OBJECT
 
---	$Id: json_object.tps 42847 2014-04-06 17:38:58Z doberkofler $
+--	$Id: json_object.tps 48277 2016-06-19 15:49:02Z doberkofler $
 
 ------------
 --  OVERVIEW
@@ -83,6 +83,7 @@ TYPE json_object IS OBJECT
 	--	Member setter methods
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN VARCHAR2),
+	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN CLOB),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN NUMBER),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN DATE),
 	MEMBER PROCEDURE put(SELF IN OUT NOCOPY json_object, theName IN VARCHAR2, theValue IN BOOLEAN),
@@ -100,6 +101,7 @@ TYPE json_object IS OBJECT
 
 	--	Output methods
 	MEMBER PROCEDURE to_clob(SELF IN json_object, theLobBuf IN OUT NOCOPY CLOB, theEraseLob BOOLEAN DEFAULT TRUE),
+	MEMBER FUNCTION to_text(SELF IN json_object) RETURN VARCHAR2,
 	MEMBER PROCEDURE htp(SELF IN json_object, theJSONP IN VARCHAR2 DEFAULT NULL)
 );
 /

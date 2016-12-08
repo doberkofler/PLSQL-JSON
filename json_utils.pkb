@@ -2,6 +2,11 @@ CREATE OR REPLACE
 PACKAGE BODY json_utils
 IS
 
+PROCEDURE copySubNodes(theTarget IN OUT NOCOPY json_nodes, theFirstID IN OUT NOCOPY BINARY_INTEGER, theParentID IN BINARY_INTEGER, theSource IN json_nodes, theFirstSourceID IN BINARY_INTEGER);
+PROCEDURE removeSubNodes(theNodes IN OUT NOCOPY json_nodes, theNodeID IN BINARY_INTEGER);
+FUNCTION number_to_json(theNumber IN NUMBER) RETURN VARCHAR2;
+FUNCTION boolean_to_json(theBoolean IN NUMBER) RETURN VARCHAR2;
+
 ----------------------------------------------------------
 --	get the number of nodes
 --
@@ -75,7 +80,7 @@ IS
 	PROCEDURE error(theNodeID IN NUMBER, text VARCHAR2)
 	IS
 	BEGIN
-		raise_application_error(-20100, 'JSON Validator exception @ node: '||theNodeID||' - '||text);
+		raise_application_error(-20100, 'JSON Validator exception @ node: '||theNodeID||' - '||text, TRUE);
 	END error;
 BEGIN
 	i := theNodes.FIRST;
@@ -114,24 +119,27 @@ BEGIN
 		END IF;
 
 		--	sub nodes of an object node
-		IF (n.par IS NOT NULL AND theNodes(n.par).typ = 'O' AND n.nam IS NULL) THEN
+		IF (n.par IS NOT NULL AND theNodes(n.par).typ = json_const.NODE_TYPE_OBJECT AND n.nam IS NULL) THEN
 			error(i, 'Sub nodes of an object node must have a property name');
 		END IF;
 
 		--	sub nodes of an array node
-		IF (n.par IS NOT NULL AND theNodes(n.par).typ = 'A' AND n.nam IS NOT NULL) THEN
+		IF (n.par IS NOT NULL AND theNodes(n.par).typ = json_const.NODE_TYPE_ARRAY AND n.nam IS NOT NULL) THEN
 			error(i, 'Sub nodes of an array node are not allowed to have a property name');
 		END IF;
 
 		--	type dependent validations
 		CASE n.typ
 
-		WHEN '0' THEN	--	null
+		WHEN json_const.NODE_TYPE_NULL THEN	--	null
 			IF (n.str IS NOT NULL OR n.num IS NOT NULL OR n.dat IS NOT NULL) THEN
 				error(i, 'String or number value not NULL in a null node');
 			END IF;
 
-		WHEN 'S' THEN	--	string
+		WHEN json_const.NODE_TYPE_STRING THEN	--	string
+			IF (n.lob IS NOT NULL) THEN
+				error(i, 'LOB value not NULL in a string node');
+			END IF;
 			IF (n.num IS NOT NULL) THEN
 				error(i, 'Number value not NULL in a string node');
 			END IF;
@@ -139,7 +147,18 @@ BEGIN
 				error(i, 'Date value not NULL in a string node');
 			END IF;
 
-		WHEN 'N' THEN	--	number
+		WHEN json_const.NODE_TYPE_LOB THEN		--	lob
+			IF (n.str IS NOT NULL) THEN
+				error(i, 'String value not NULL in a string node');
+			END IF;
+			IF (n.num IS NOT NULL) THEN
+				error(i, 'Number value not NULL in a string node');
+			END IF;
+			IF (n.dat IS NOT NULL) THEN
+				error(i, 'Date value not NULL in a string node');
+			END IF;
+
+		WHEN json_const.NODE_TYPE_NUMBER THEN	--	number
 			IF (n.str IS NOT NULL) THEN
 				error(i, 'String value not NULL in a number node');
 			END IF;
@@ -150,7 +169,7 @@ BEGIN
 				error(i, 'Date value not NULL in a number node');
 			END IF;
 
-		WHEN 'D' THEN	--	date
+		WHEN json_const.NODE_TYPE_DATE THEN	--	date
 			IF (n.str IS NOT NULL) THEN
 				error(i, 'String value not NULL in a date node');
 			END IF;
@@ -161,7 +180,7 @@ BEGIN
 				error(i, 'Date value is NULL in a date node');
 			END IF;
 
-		WHEN 'B' THEN	--	boolean
+		WHEN json_const.NODE_TYPE_BOOLEAN THEN	--	boolean
 			IF (n.str IS NOT NULL) THEN
 				error(i, 'String value not NULL in a boolean node');
 			END IF;
@@ -172,7 +191,7 @@ BEGIN
 				error(i, 'Date value not NULL in a number node');
 			END IF;
 
-		WHEN 'O' THEN	--	object
+		WHEN json_const.NODE_TYPE_OBJECT THEN	--	object
 			/*
 			an object node without subnotes defines an empty object
 
@@ -182,7 +201,7 @@ BEGIN
 			*/
 			NULL;
 
-		WHEN 'A' THEN	--	array
+		WHEN json_const.NODE_TYPE_ARRAY THEN	--	array
 			/*
 			an array node without subnotes defines an empty array
 
@@ -289,47 +308,11 @@ END copyNodes;
 --
 FUNCTION createSubTree(theSourceNodes IN json_nodes, theSourceNodeID IN BINARY_INTEGER) RETURN json_value
 IS
-	aData	json_value		:=	json_value();
-	aLevel	BINARY_INTEGER	:=	1;
-
-	PROCEDURE copy(theTarget IN OUT NOCOPY json_nodes, theParentID IN BINARY_INTEGER, theSource IN json_nodes, theFirstSourceID IN BINARY_INTEGER)
-	IS
-		aLastID		BINARY_INTEGER;
-		aCurrID		BINARY_INTEGER;
-		aSourceID	BINARY_INTEGER	:=	theFirstSourceID;
-	BEGIN
-		WHILE (aSourceID IS NOT NULL) LOOP
-			--	add a new node
-			theTarget.EXTEND(1);
-			aCurrID					:= theTarget.LAST;
-			theTarget(aCurrID)		:= theSource(aSourceID);
-			theTarget(aCurrID).par	:= theParentID;
-			theTarget(aCurrID).nex	:= NULL;
-			theTarget(aCurrID).sub	:= CASE theSource(aSourceID).sub IS NOT NULL WHEN TRUE THEN aCurrID + 1 ELSE NULL END;
-
-			-- set the next id
-			IF (aLastID IS NOT NULL) THEN
-				theTarget(aLastID).nex := aCurrID;
-			END IF;
-			aLastID := aCurrID;
-
-			--dbms_output.put_line(LPAD('.', aLevel, '.')||'copied node ('||aSourceID||') to new node: '||json_debug.dump(theTarget(aCurrID), aCurrID));
-
-			-- if the node has subnodes recurse into the subnodes
-			IF (theSource(aSourceID).sub IS NOT NULL) THEN
-				aLevel := aLevel + 1;
-				copy(theTarget=>theTarget, theParentID=>aCurrID, theSource=>theSource, theFirstSourceID=>theSource(aSourceID).sub);
-				aLevel := aLevel - 1;
-			END IF;
-
-			-- go to the next node
-			aSourceID := theSource(aSourceID).nex;
-		END LOOP;
-	END copy;
-
+	aData		json_value		:=	json_value();
+	aFirstID	BINARY_INTEGER;
 BEGIN
 	--	if we must only copy a basic node
-	IF (theSourceNodes(theSourceNodeID).typ NOT IN ('O', 'A')) THEN
+	IF (theSourceNodes(theSourceNodeID).typ NOT IN (json_const.NODE_TYPE_OBJECT, json_const.NODE_TYPE_ARRAY)) THEN
 		aData.nodes.EXTEND(1);
 		aData.typ			:= NULL;
 		aData.nodes(1)		:= theSourceNodes(theSourceNodeID);
@@ -339,16 +322,116 @@ BEGIN
 		RETURN aData;
 	END IF;
 
-	--	we must extract a subtree of nodes and create a new tree starting with the first node in the sub tree
 	--dbms_output.put_line('json_util.createSubTree for object or array. starting with node: '||theSourceNodes(theSourceNodeID).sub);
+
+	--	we must extract a subtree of nodes and create a new tree starting with the first node in the sub tree
 	aData.typ := theSourceNodes(theSourceNodeID).typ;
-	copy(theTarget=>aData.nodes, theParentID=>NULL, theSource=>theSourceNodes, theFirstSourceID=>theSourceNodes(theSourceNodeID).sub);
+	copySubNodes(theTarget=>aData.nodes, theFirstID=>aFirstID, theParentID=>NULL, theSource=>theSourceNodes, theFirstSourceID=>theSourceNodes(theSourceNodeID).sub);
 
 	RETURN aData;
 END createSubTree;
 
 ----------------------------------------------------------
---	escape
+--	removeNode
+--
+FUNCTION removeNode(theNodes IN OUT NOCOPY json_nodes, theNodeID IN BINARY_INTEGER) RETURN BINARY_INTEGER
+IS
+	aNodes			CONSTANT	json_nodes		:= theNodes;
+	aNode						json_node;
+	aOldNodeCount				BINARY_INTEGER;
+	aNewNodeCount				BINARY_INTEGER;
+	aFound						BOOLEAN			:= FALSE;
+	aCurrID						BINARY_INTEGER;
+	aFirstID					BINARY_INTEGER;
+	aLastID						BINARY_INTEGER;
+	aSourceNodeID				BINARY_INTEGER;
+BEGIN
+	--
+	--	It is only possible to remove a node by basically creating a completely new tree and this is done by first copying
+	--	the original tree and then trsversing the copy and create a new tree without the remove node and all it's possible
+	--	sub-trees.
+	--
+
+	--json_debug.output(theNodes=>theNodes, theRawFlag=>TRUE, theTitle=>'before removeNode');
+
+	-- make sure that we have the node to remove on the root level and save the number of nodes in the root level
+	aSourceNodeID := theNodes.FIRST;
+	aOldNodeCount := 0;
+	WHILE (aSourceNodeID IS NOT NULL) LOOP
+		aOldNodeCount := aOldNodeCount + 1;
+		IF (aSourceNodeID = theNodeID) THEN
+			aFound := TRUE;
+		END IF;
+		aSourceNodeID := theNodes(aSourceNodeID).nex;
+	END LOOP;
+	IF (NOT aFound) THEN
+		raise_application_error(-20100, 'Cannot find node: '||theNodeID, TRUE);
+	END IF;
+
+	-- delete all original nodes
+	IF (aNodes.COUNT != theNodes.COUNT) THEN
+		raise_application_error(-20100, 'Not all node have been copied', TRUE);
+	END IF;
+	theNodes.DELETE;
+	IF (theNodes.COUNT != 0) THEN
+		raise_application_error(-20100, 'Not all nodes have been removed', TRUE);
+	END IF;
+
+	-- process the nodes on the root level (the ones that have no parent and use the next link)
+	aSourceNodeID := aNodes.FIRST;
+	WHILE (aSourceNodeID IS NOT NULL) LOOP
+		-- get the source node
+		aNode := aNodes(aSourceNodeID);
+
+		-- reset the nex "attribute" because it might get removed
+		aNode.nex := NULL;
+
+		-- make sure that all nodes on the root level of an object or array have no parent
+		IF (aNode.par IS NOT NULL) THEN
+			raise_application_error(-20100, 'Invalid par attribute in node: '||aSourceNodeID, TRUE);
+		END IF;
+
+		-- this node needs to be copied
+		IF (aSourceNodeID != theNodeID) THEN
+			-- add the node
+			aCurrID := addNode(theNodes=>theNodes, theLastID=>aLastID, theNode=>aNode);
+
+			-- if there are any sub-notes, we must copy them recursively
+			IF (aNode.typ IN (json_const.NODE_TYPE_OBJECT, json_const.NODE_TYPE_ARRAY)) THEN
+				IF (aNode.sub IS NULL) THEN
+					raise_application_error(-20100, 'Invalid sub attribute in node: '||aSourceNodeID, TRUE);
+				END IF;
+
+				-- copy the sub notes
+				aFirstID := NULL;
+				copySubNodes(theTarget=>theNodes, theFirstID=>aFirstID, theParentID=>aCurrID, theSource=>aNodes, theFirstSourceID=>aNode.sub);
+
+				-- set the new sub id in the node
+				theNodes(aCurrID).sub := aFirstID;
+			END IF;
+		END IF;
+
+		aSourceNodeID := aNodes(aSourceNodeID).nex;
+	END LOOP;
+
+	-- make sure that we have removed exactly one node in the root level
+	aSourceNodeID := theNodes.FIRST;
+	aNewNodeCount := 0;
+	WHILE (aSourceNodeID IS NOT NULL) LOOP
+		aNewNodeCount := aNewNodeCount + 1;
+		aSourceNodeID := theNodes(aSourceNodeID).nex;
+	END LOOP;
+	IF (aNewNodeCount != aOldNodeCount - 1) THEN
+		raise_application_error(-20100, 'Invalid number of nodes after removing one. before: '||aOldNodeCount||' after: '||aNewNodeCount, TRUE);
+	END IF;
+
+	--json_debug.output(theNodes=>theNodes, theRawFlag=>TRUE, theTitle=>'after removeNode');
+
+	RETURN aLastID;
+END removeNode;
+
+----------------------------------------------------------
+--	escape (VARCHAR2)
 --
 FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2
 IS
@@ -359,7 +442,7 @@ BEGIN
 	IF (theString IS NULL) THEN
 		RETURN '';
 	END IF;
-	
+
 	FOR I IN 1 .. LENGTH(theString) LOOP
 		buf := SUBSTR(theString, i, 1);
 
@@ -390,18 +473,51 @@ BEGIN
 END escape;
 
 ----------------------------------------------------------
---	add_to_clob
+--	escapeLOB (CLOB)
 --
-PROCEDURE add_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theString IN VARCHAR2)
+PROCEDURE escapeLOB(theInputLob IN CLOB, theOutputLob IN OUT NOCOPY CLOB, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE)
 IS
+	len CONSTANT	NUMBER			:=	dbms_lob.getlength(lob_loc=>theInputLob);
+	buf				VARCHAR2(64);
+	num				NUMBER;
 BEGIN
-	IF (LENGTHB(theString) > 32767 - LENGTHB(theStrBuf)) THEN
-		dbms_lob.writeappend(theLobBuf, LENGTH(theStrBuf), theStrBuf);
-		theStrBuf := theString;
-	ELSE
-		theStrBuf := theStrBuf || theString;
+	-- delete destination lob
+	IF (dbms_lob.getlength(lob_loc=>theOutputLob) > 0) THEN
+		dbms_lob.trim(lob_loc=>theOutputLob, newlen=>0);
 	END IF;
-END add_to_clob;
+
+	-- empty lob
+	IF (theInputLob IS NULL OR len = 0) THEN
+		RETURN;
+	END IF;
+
+	-- process the lob	
+	FOR I IN 1 .. dbms_lob.getlength(lob_loc=>theInputLob) LOOP
+		buf := dbms_lob.substr(lob_loc=>theInputLob, amount=>1, offset=>i);
+
+		CASE buf
+		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
+		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
+		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
+		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
+		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(34) THEN buf := '\"';
+		WHEN CHR(47) THEN				--	slash
+			IF (theEscapeSolitus) THEN
+				buf := '\/';
+			END IF;
+		WHEN CHR(92) THEN buf := '\\';	--	backslash
+		ELSE
+			IF (ASCII(buf) < 32) THEN
+				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
+			ELSIF (theAsciiOutput) then
+				buf := REPLACE(ASCIISTR(buf), '\', '\u');
+			END IF;
+		END CASE;
+
+		dbms_lob.append(dest_lob=>theOutputLob, src_lob=>TO_CLOB(buf));
+	END LOOP;
+END escapeLOB;
 
 ----------------------------------------------------------
 --	value_to_clob
@@ -409,56 +525,69 @@ END add_to_clob;
 PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER)
 IS
 	aNode	json_node			:=	theNodes(theNodeID);
-	s		VARCHAR2(32767);
+
+	aName	VARCHAR2(32767);
+	aValue	VARCHAR2(32767);
+	aCLOB	CLOB;
 BEGIN
 	--	Add the property name
 	IF (aNode.nam IS NOT NULL) THEN
 		PRAGMA INLINE (escape, 'YES');
-		s := escape(aNode.nam);
+		aName := '"' || escape(aNode.nam) || '":';
 
-		PRAGMA INLINE (add_to_clob, 'YES');
-		add_to_clob(theLobBuf, theStrBuf, '"' || s || '":');
+		PRAGMA INLINE (add_string, 'YES');
+		json_clob.add_string(theLobBuf, theStrBuf, aName);
 	END IF;
 
 	--	Add the property value
 	CASE aNode.typ
-	WHEN '0' THEN
-		s := 'null';
-	WHEN 'S' THEN
+
+	WHEN json_const.NODE_TYPE_NULL THEN
+		aValue := 'null';
+
+	WHEN json_const.NODE_TYPE_STRING THEN
 		PRAGMA INLINE (escape, 'YES');
-		s := '"' || escape(aNode.str) || '"';
-	WHEN 'N' THEN
-		IF (aNode.num IS NOT NULL) THEN
-			IF (aNode.num < 1 AND aNode.num > 0) THEN
-				s := '0'|| TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
-			ELSIF (aNode.num < 0 AND aNode.num > -1) THEN
-				s := '-0' || SUBSTR(TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,'''), 2);
-			ELSE
-				s := TO_CHAR(aNode.num, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
-			END IF;
-		ELSE
-			s := 'null';
-		END IF;
-	WHEN 'D' THEN
-		s := '"' || TO_CHAR(aNode.dat, 'YYYY-MM-DD') || 'T' || TO_CHAR(aNode.dat, 'HH24:MI:SS') || '.000Z"';
-	WHEN 'B' THEN
-		IF (aNode.num IS NOT NULL) THEN
-			s := CASE aNode.num WHEN 1 THEN 'true' ELSE 'false' END;
-		ELSE
-			s := 'null';
-		END IF;
-	WHEN 'O' THEN
+		aValue := '"' || escape(aNode.str) || '"';
+
+	WHEN json_const.NODE_TYPE_LOB THEN
+		PRAGMA INLINE (add_string, 'YES');
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
+		dbms_lob.createtemporary(lob_loc=>aCLOB, cache=>TRUE, dur=>dbms_lob.session);
+		escapeLOB(theInputLob=>aNode.lob, theOutputLob=>aCLOB);
+		PRAGMA INLINE (add_clob, 'YES');
+		json_clob.add_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>aCLOB);
+		dbms_lob.freetemporary(lob_loc=>aCLOB);
+		PRAGMA INLINE (add_string, 'YES');
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
+
+		RETURN;
+
+	WHEN json_const.NODE_TYPE_NUMBER THEN
+		PRAGMA INLINE (number_to_json, 'YES');
+		aValue := number_to_json(aNode.num);
+
+	WHEN json_const.NODE_TYPE_DATE THEN
+		aValue := '"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"';
+
+	WHEN json_const.NODE_TYPE_BOOLEAN THEN
+		PRAGMA INLINE (boolean_to_json, 'YES');
+		aValue := boolean_to_json(aNode.num);
+
+	WHEN json_const.NODE_TYPE_OBJECT THEN
 		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
 		RETURN;
-	WHEN 'A' THEN
+
+	WHEN json_const.NODE_TYPE_ARRAY THEN
 		json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
 		RETURN;
+
 	ELSE
-		RAISE VALUE_ERROR;
+		raise_application_error(-20100, 'Invalid node type: '||aNode.typ, TRUE);
 	END CASE;
 
-	PRAGMA INLINE (add_to_clob, 'YES');
-	add_to_clob(theLobBuf, theStrBuf, s);
+	-- add text to clob (for all except LOB, OBJECT and ARRAY)
+	PRAGMA INLINE (add_string, 'YES');
+	json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>aValue);
 END value_to_clob;
 
 ----------------------------------------------------------
@@ -469,26 +598,26 @@ IS
 	i	BINARY_INTEGER	:=	theNodeID;
 BEGIN
 	--	Serialize the object
-	PRAGMA INLINE (add_to_clob, 'YES');
-	json_utils.add_to_clob(theLobBuf, theStrBuf, '{');
+	PRAGMA INLINE (add_string, 'YES');
+	json_clob.add_string(theLobBuf, theStrBuf, '{');
 	WHILE (i IS NOT NULL) LOOP
 		--	Add separator from last property if we are not the first one
 		IF (i != theNodeID) THEN
-			PRAGMA INLINE (add_to_clob, 'YES');
-			json_utils.add_to_clob(theLobBuf, theStrBuf, ',');
+			PRAGMA INLINE (add_string, 'YES');
+			json_clob.add_string(theLobBuf, theStrBuf, ',');
 		END IF;
 
 		--	Add the property pair
-		PRAGMA INLINE (value_to_clob, 'YES');
+		--PRAGMA INLINE (value_to_clob, 'YES');
 		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
 
 		i := theNodes(i).nex;
 	END LOOP;
-	PRAGMA INLINE (add_to_clob, 'YES');
-	json_utils.add_to_clob(theLobBuf, theStrBuf, '}');
+	PRAGMA INLINE (add_string, 'YES');
+	json_clob.add_string(theLobBuf, theStrBuf, '}');
 
 	IF (theFlushToLOB) THEN
-		json_utils.flush_clob(theLobBuf, theStrBuf);
+		json_clob.flush(theLobBuf, theStrBuf);
 	END IF;
 END object_to_clob;
 
@@ -500,13 +629,13 @@ IS
 	i	BINARY_INTEGER	:=	theNodeID;
 BEGIN
 	--	Serialize the object
-	PRAGMA INLINE (add_to_clob, 'YES');
-	json_utils.add_to_clob(theLobBuf, theStrBuf, '[');
+	PRAGMA INLINE (add_string, 'YES');
+	json_clob.add_string(theLobBuf, theStrBuf, '[');
 	WHILE (i IS NOT NULL) LOOP
 		--	Add separator from last array entry if we are not the first one
 		IF (i != theNodeID) THEN
-			PRAGMA INLINE (add_to_clob, 'YES');
-			json_utils.add_to_clob(theLobBuf, theStrBuf, ',');
+			PRAGMA INLINE (add_string, 'YES');
+			json_clob.add_string(theLobBuf, theStrBuf, ',');
 		END IF;
 
 		--	Add the property pair
@@ -515,52 +644,32 @@ BEGIN
 
 		i := theNodes(i).nex;
 	END LOOP;
-	PRAGMA INLINE (add_to_clob, 'YES');
-	json_utils.add_to_clob(theLobBuf, theStrBuf, ']');
+	PRAGMA INLINE (add_string, 'YES');
+	json_clob.add_string(theLobBuf, theStrBuf, ']');
 
 	IF (theFlushToLOB) THEN
-		json_utils.flush_clob(theLobBuf, theStrBuf);
+		json_clob.flush(theLobBuf, theStrBuf);
 	END IF;
 END array_to_clob;
-
-----------------------------------------------------------
---	flush_clob
---
-PROCEDURE flush_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2)
-IS
-BEGIN
-	IF (theStrBuf IS NOT NULL) THEN
-		dbms_lob.writeappend(theLobBuf, LENGTH(theStrBuf), theStrBuf);
-		theStrBuf := NULL;
-	END IF;
-END flush_clob;
-
-----------------------------------------------------------
---	erase_clob
---
-PROCEDURE erase_clob(theLobBuf IN OUT NOCOPY CLOB)
-IS
-	aAmount	NUMBER			:= dbms_lob.getlength(theLobBuf);
-BEGIN
-	IF (aAmount > 0) THEN
-		dbms_lob.trim(theLobBuf, 0);
-		dbms_lob.erase(theLobBuf, aAmount);
-	END IF;
-END erase_clob;
 
 ----------------------------------------------------------
 --	htp_output_clob
 --
 PROCEDURE htp_output_clob(theLobBuf IN CLOB, theJSONP IN VARCHAR2 DEFAULT NULL)
 IS
-	amt		NUMBER			:=	30;
-	off		NUMBER			:=	1;
-	str		VARCHAR2(4096);
-BEGIN
-	--	open the headers
-	owa_util.mime_header('application/json', FALSE);
+	MIME_TYPE	CONSTANT	VARCHAR2(30)	:=	'application/json';
+	NO_CACHE	CONSTANT	VARCHAR2(32767)	:=	'Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+Cache-Control: post-check=0, pre-check=0
+Pragma: no-cache
+Expires: -1';
 
-	--	close the headers
+	amt						NUMBER			:=	30;
+	off						NUMBER			:=	1;
+	str						VARCHAR2(4096);
+BEGIN
+	--	generate the http header identifying this as json and prevent browsers (IE is very agressive here) from caching
+	owa_util.mime_header(MIME_TYPE, FALSE);
+	htp.p(NO_CACHE);
 	owa_util.http_header_close;
 
 	--	the JSONP callback
@@ -586,6 +695,95 @@ BEGIN
 		htp.prn(')');
 	END IF;
 END htp_output_clob;
+
+----------------------------------------------------------
+--	copySubNodes (private)
+--
+PROCEDURE copySubNodes(theTarget IN OUT NOCOPY json_nodes, theFirstID IN OUT NOCOPY BINARY_INTEGER, theParentID IN BINARY_INTEGER, theSource IN json_nodes, theFirstSourceID IN BINARY_INTEGER)
+IS
+	aLastID		BINARY_INTEGER;
+	aCurrID		BINARY_INTEGER;
+	aSourceID	BINARY_INTEGER	:=	theFirstSourceID;
+BEGIN
+	WHILE (aSourceID IS NOT NULL) LOOP
+		--	add a new node
+		theTarget.EXTEND(1);
+		aCurrID					:= theTarget.LAST;
+		theTarget(aCurrID)		:= theSource(aSourceID);
+		theTarget(aCurrID).par	:= theParentID;
+		theTarget(aCurrID).nex	:= NULL;
+		theTarget(aCurrID).sub	:= CASE theSource(aSourceID).sub IS NOT NULL WHEN TRUE THEN aCurrID + 1 ELSE NULL END;
+
+		-- save the first id
+		IF (aSourceID = theFirstSourceID AND theFirstID IS NULL) THEN
+			theFirstID := aCurrID;
+		END IF;
+
+		-- set the next id
+		IF (aLastID IS NOT NULL) THEN
+			theTarget(aLastID).nex := aCurrID;
+		END IF;
+		aLastID := aCurrID;
+
+		-- if the node has subnodes recurse into the subnodes
+		IF (theSource(aSourceID).sub IS NOT NULL) THEN
+			copySubNodes(theTarget=>theTarget, theFirstID=>theFirstID, theParentID=>aCurrID, theSource=>theSource, theFirstSourceID=>theSource(aSourceID).sub);
+		END IF;
+
+		-- go to the next node
+		aSourceID := theSource(aSourceID).nex;
+	END LOOP;
+END copySubNodes;
+
+----------------------------------------------------------
+--	removeSubNodes (private)
+--
+PROCEDURE removeSubNodes(theNodes IN OUT NOCOPY json_nodes, theNodeID IN BINARY_INTEGER)
+IS
+	aNode	CONSTANT	json_node		:= theNodes(theNodeID);
+BEGIN
+	IF (aNode.sub IS NOT NULL) THEN
+		removeSubNodes(theNodes, aNode.sub);
+	END IF;
+END removeSubNodes;
+
+----------------------------------------------------------
+--	number_to_json (private)
+--
+FUNCTION number_to_json(theNumber IN NUMBER) RETURN VARCHAR2
+IS
+	s VARCHAR2(32767);
+BEGIN
+	IF (theNumber IS NOT NULL) THEN
+		IF (theNumber < 1 AND theNumber > 0) THEN
+			s := '0'|| TO_CHAR(theNumber, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
+		ELSIF (theNumber < 0 AND theNumber > -1) THEN
+			s := '-0' || SUBSTR(TO_CHAR(theNumber, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,'''), 2);
+		ELSE
+			s := TO_CHAR(theNumber, 'TM9', 'NLS_NUMERIC_CHARACTERS=''.,''');
+		END IF;
+	ELSE
+		s := 'null';
+	END IF;
+
+	RETURN s;
+END number_to_json;
+
+----------------------------------------------------------
+--	boolean_to_json (private)
+--
+FUNCTION boolean_to_json(theBoolean IN NUMBER) RETURN VARCHAR2
+IS
+	s VARCHAR2(32767);
+BEGIN
+	IF (theBoolean IS NOT NULL) THEN
+		s := CASE theBoolean WHEN 1 THEN 'true' ELSE 'false' END;
+	ELSE
+		s := 'null';
+	END IF;
+
+	RETURN s;
+END boolean_to_json;
 
 END json_utils;
 /

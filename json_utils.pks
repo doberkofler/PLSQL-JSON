@@ -45,6 +45,11 @@ PROCEDURE copyNodes(theTargetNodes IN OUT NOCOPY json_nodes, theTargetNodeID IN 
 FUNCTION createSubTree(theSourceNodes IN json_nodes, theSourceNodeID IN BINARY_INTEGER) RETURN json_value;
 
 ----------------------------------------------------------
+--	remove the given node and all of it's subnodes
+--
+FUNCTION removeNode(theNodes IN OUT NOCOPY json_nodes, theNodeID IN BINARY_INTEGER) RETURN BINARY_INTEGER;
+
+----------------------------------------------------------
 --	convert a node value to a JSON string
 --
 PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER);
@@ -60,25 +65,14 @@ PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY V
 PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
 
 ----------------------------------------------------------
---	add a string to a CLOB
---	(this operation uses a string buffer cache)
---
-PROCEDURE add_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theString IN VARCHAR2);
-
-----------------------------------------------------------
---	flush the string buffer cache to the CLOB
---
-PROCEDURE flush_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2);
-
-----------------------------------------------------------
---	erase the content of a CLOB
---
-PROCEDURE erase_clob(theLobBuf IN OUT NOCOPY CLOB);
-
-----------------------------------------------------------
 --	escape the string
 --
 FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2;
+
+----------------------------------------------------------
+--	escape the clob
+--
+PROCEDURE escapeLOB(theInputLob IN CLOB, theOutputLob IN OUT NOCOPY CLOB, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE);
 
 ----------------------------------------------------------
 --	copy output to the browser using htp.prn
