@@ -1,6 +1,7 @@
 v0.4.0 - December 8, 2016
 * 0.4.0 (Dieter Oberkofler)
 * Added support for CLOB properties. (Dieter Oberkofler)
+* Added support to update properties. (Dieter Oberkofler)
 * Added a new module json_sql that allows to dynamically generate a json representation of the rows in a select with bind variables. (Dieter Oberkofler)
 
 v0.3.1 - March 16, 2016
