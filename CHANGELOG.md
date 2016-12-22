@@ -1,3 +1,7 @@
+v0.4.1 - December 22, 2016
+* 0.4.1 (Dieter Oberkofler)
+* Improved the performance when working with CLOB values by 10 to 100 times depending on the actual CLOB length. (Dieter Oberkofler)
+
 v0.4.0 - December 8, 2016
 * 0.4.0 (Dieter Oberkofler)
 * Added support for CLOB properties. (Dieter Oberkofler)

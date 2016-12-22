@@ -23,46 +23,6 @@ FUNCTION toJSON(theDate IN DATE) RETURN VARCHAR2;
 ----------------------------------------------------------
 
 ----------------------------------------------------------
---	UT_escape (private)
---
-PROCEDURE UT_escape
-IS
-	TYPE TestValueType IS RECORD (v VARCHAR2(32767), r VARCHAR2(32767));
-	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
-
-	aList		TestValueList;
-	aTitle		VARCHAR2(32767);
-	eExpected	VARCHAR2(32767);
-
-	PROCEDURE addPair(theValue IN VARCHAR2, theResult IN VARCHAR2)
-	IS
-		i	BINARY_INTEGER	:=	aList.COUNT + 1;
-	BEGIN
-		aList(i).v := theValue;
-		aList(i).r := theResult;
-	END addPair;
-
-BEGIN
-	UT_util.module('UT_escape');
-
-	addPair('',																'');
-	addPair(NULL,															'');
-	addPair('a',															'a');
-	addPair(' ',															' ');
-	addPair(' abc ',														' abc ');
-	addPair(' "*" ',														' \"*\" ');
-	addPair('/',															'/');
-	addPair(CHR(8)||CHR(9)||CHR(10)||CHR(13)||CHR(14)||CHR(34)||CHR(92),	'\b\t\n\f\r\"\\');
-	addPair(CHR(1)||CHR(2)||CHR(30)||CHR(31),								'\u0001\u0002\u001E\u001F');
-
-	-- process test values with theEscapeSolidusFlag=FALSE
-	FOR i IN 1 .. aList.COUNT LOOP
-		aTitle  := 'escapeString(escape=FALSE, ascii=TRUE): string="'||UT_util.asString(aList(i).v)||'"';
-		UT_util.eq(theTitle=>aTitle, theExpected=>aList(i).r, theComputed=>json_utils.escape(theString=>aList(i).v), theNullOK=>TRUE);
-	END LOOP;
-END UT_escape;
-
-----------------------------------------------------------
 --	test the convertion of simple values (private)
 --
 PROCEDURE UT_Values
@@ -1850,7 +1810,6 @@ END toJSON;
 PROCEDURE run
 IS
 BEGIN
-	UT_escape;
 	UT_values;
 	UT_LobValues;
 	UT_Nodes;

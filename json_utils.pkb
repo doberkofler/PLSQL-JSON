@@ -6,6 +6,8 @@ PROCEDURE copySubNodes(theTarget IN OUT NOCOPY json_nodes, theFirstID IN OUT NOC
 PROCEDURE removeSubNodes(theNodes IN OUT NOCOPY json_nodes, theNodeID IN BINARY_INTEGER);
 FUNCTION number_to_json(theNumber IN NUMBER) RETURN VARCHAR2;
 FUNCTION boolean_to_json(theBoolean IN NUMBER) RETURN VARCHAR2;
+FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2;
+PROCEDURE escapeLOB(theInputLob IN CLOB, theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE);
 
 ----------------------------------------------------------
 --	get the number of nodes
@@ -431,95 +433,6 @@ BEGIN
 END removeNode;
 
 ----------------------------------------------------------
---	escape (VARCHAR2)
---
-FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2
-IS
-	sb							VARCHAR2(32767) := '';
-	buf							VARCHAR2(64);
-	num							NUMBER;
-BEGIN
-	IF (theString IS NULL) THEN
-		RETURN '';
-	END IF;
-
-	FOR I IN 1 .. LENGTH(theString) LOOP
-		buf := SUBSTR(theString, i, 1);
-
-		CASE buf
-		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
-		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
-		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
-		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
-		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
-		WHEN CHR(34) THEN buf := '\"';
-		WHEN CHR(47) THEN				--	slash
-			IF (theEscapeSolitus) THEN
-				buf := '\/';
-			END IF;
-		WHEN CHR(92) THEN buf := '\\';	--	backslash
-		ELSE
-			IF (ASCII(buf) < 32) THEN
-				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
-			ELSIF (theAsciiOutput) then
-				buf := REPLACE(ASCIISTR(buf), '\', '\u');
-			END IF;
-		END CASE;
-
-		sb := sb || buf;
-	END LOOP;
-
-	RETURN sb;
-END escape;
-
-----------------------------------------------------------
---	escapeLOB (CLOB)
---
-PROCEDURE escapeLOB(theInputLob IN CLOB, theOutputLob IN OUT NOCOPY CLOB, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE)
-IS
-	len CONSTANT	NUMBER			:=	dbms_lob.getlength(lob_loc=>theInputLob);
-	buf				VARCHAR2(64);
-	num				NUMBER;
-BEGIN
-	-- delete destination lob
-	IF (dbms_lob.getlength(lob_loc=>theOutputLob) > 0) THEN
-		dbms_lob.trim(lob_loc=>theOutputLob, newlen=>0);
-	END IF;
-
-	-- empty lob
-	IF (theInputLob IS NULL OR len = 0) THEN
-		RETURN;
-	END IF;
-
-	-- process the lob	
-	FOR I IN 1 .. dbms_lob.getlength(lob_loc=>theInputLob) LOOP
-		buf := dbms_lob.substr(lob_loc=>theInputLob, amount=>1, offset=>i);
-
-		CASE buf
-		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
-		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
-		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
-		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
-		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
-		WHEN CHR(34) THEN buf := '\"';
-		WHEN CHR(47) THEN				--	slash
-			IF (theEscapeSolitus) THEN
-				buf := '\/';
-			END IF;
-		WHEN CHR(92) THEN buf := '\\';	--	backslash
-		ELSE
-			IF (ASCII(buf) < 32) THEN
-				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
-			ELSIF (theAsciiOutput) then
-				buf := REPLACE(ASCIISTR(buf), '\', '\u');
-			END IF;
-		END CASE;
-
-		dbms_lob.append(dest_lob=>theOutputLob, src_lob=>TO_CLOB(buf));
-	END LOOP;
-END escapeLOB;
-
-----------------------------------------------------------
 --	value_to_clob
 --
 PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER)
@@ -527,7 +440,6 @@ IS
 	aNode	json_node			:=	theNodes(theNodeID);
 
 	aName	VARCHAR2(32767);
-	aValue	VARCHAR2(32767);
 	aCLOB	CLOB;
 BEGIN
 	--	Add the property name
@@ -543,51 +455,41 @@ BEGIN
 	CASE aNode.typ
 
 	WHEN json_const.NODE_TYPE_NULL THEN
-		aValue := 'null';
+		PRAGMA INLINE (add_string, 'YES');
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'null');
 
 	WHEN json_const.NODE_TYPE_STRING THEN
 		PRAGMA INLINE (escape, 'YES');
-		aValue := '"' || escape(aNode.str) || '"';
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"' || escape(aNode.str) || '"');
 
 	WHEN json_const.NODE_TYPE_LOB THEN
 		PRAGMA INLINE (add_string, 'YES');
 		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
-		dbms_lob.createtemporary(lob_loc=>aCLOB, cache=>TRUE, dur=>dbms_lob.session);
-		escapeLOB(theInputLob=>aNode.lob, theOutputLob=>aCLOB);
-		PRAGMA INLINE (add_clob, 'YES');
-		json_clob.add_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>aCLOB);
-		dbms_lob.freetemporary(lob_loc=>aCLOB);
+		PRAGMA INLINE (escapeLOB, 'YES');
+		escapeLOB(theInputLob=>aNode.lob, theLobBuf=>theLobBuf, theStrBuf=>theStrBuf);
 		PRAGMA INLINE (add_string, 'YES');
 		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
 
-		RETURN;
-
 	WHEN json_const.NODE_TYPE_NUMBER THEN
 		PRAGMA INLINE (number_to_json, 'YES');
-		aValue := number_to_json(aNode.num);
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>number_to_json(aNode.num));
 
 	WHEN json_const.NODE_TYPE_DATE THEN
-		aValue := '"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"';
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"');
 
 	WHEN json_const.NODE_TYPE_BOOLEAN THEN
 		PRAGMA INLINE (boolean_to_json, 'YES');
-		aValue := boolean_to_json(aNode.num);
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>boolean_to_json(aNode.num));
 
 	WHEN json_const.NODE_TYPE_OBJECT THEN
 		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
-		RETURN;
 
 	WHEN json_const.NODE_TYPE_ARRAY THEN
 		json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
-		RETURN;
 
 	ELSE
 		raise_application_error(-20100, 'Invalid node type: '||aNode.typ, TRUE);
 	END CASE;
-
-	-- add text to clob (for all except LOB, OBJECT and ARRAY)
-	PRAGMA INLINE (add_string, 'YES');
-	json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>aValue);
 END value_to_clob;
 
 ----------------------------------------------------------
@@ -784,6 +686,108 @@ BEGIN
 
 	RETURN s;
 END boolean_to_json;
+
+----------------------------------------------------------
+--	escape (private)
+--
+FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2
+IS
+	sb							VARCHAR2(32767) := '';
+	buf							VARCHAR2(64);
+	num							NUMBER;
+BEGIN
+	IF (theString IS NULL) THEN
+		RETURN '';
+	END IF;
+
+	FOR I IN 1 .. LENGTH(theString) LOOP
+		buf := SUBSTR(theString, i, 1);
+
+		CASE buf
+		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
+		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
+		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
+		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
+		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(34) THEN buf := '\"';
+		WHEN CHR(47) THEN				--	slash
+			IF (theEscapeSolitus) THEN
+				buf := '\/';
+			END IF;
+		WHEN CHR(92) THEN buf := '\\';	--	backslash
+		ELSE
+			IF (ASCII(buf) < 32) THEN
+				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
+			ELSIF (theAsciiOutput) then
+				buf := REPLACE(ASCIISTR(buf), '\', '\u');
+			END IF;
+		END CASE;
+
+		sb := sb || buf;
+	END LOOP;
+
+	RETURN sb;
+END escape;
+
+----------------------------------------------------------
+--	escapeLOB (private)
+--
+PROCEDURE escapeLOB(theInputLob IN CLOB, theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE)
+IS
+	len CONSTANT	NUMBER			:=	dbms_lob.getlength(lob_loc=>theInputLob);
+	str				VARCHAR2(32767);
+	buf				VARCHAR2(64);
+	num				NUMBER;
+BEGIN
+	-- empty CLOB
+	IF (theInputLob IS NULL OR len = 0) THEN
+		RETURN;
+	END IF;
+
+	-- is the CLOB is so short (32767 / 6) that we can convert it like a VARCHAR2
+	IF (len <= 4000) THEN
+		str := escape(theString=>theInputLob, theAsciiOutput=>theAsciiOutput, theEscapeSolitus=>theEscapeSolitus);
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>str);
+		RETURN;
+	END IF;
+
+	-- is the CLOB short enough that we can at leat select from it like a VARCHAR2
+	IF (len <= 32767) THEN
+		str := theInputLob;
+	END IF;
+
+	-- process the lob
+	FOR I IN 1 .. len LOOP
+		IF (str IS NOT NULL) THEN
+			buf := SUBSTR(str, i, 1);
+		ELSE
+			buf := dbms_lob.substr(lob_loc=>theInputLob, amount=>1, offset=>i);
+		END IF;
+
+		CASE buf
+		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
+		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
+		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
+		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
+		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(34) THEN buf := '\"';
+		WHEN CHR(47) THEN				--	slash
+			IF (theEscapeSolitus) THEN
+				buf := '\/';
+			END IF;
+		WHEN CHR(92) THEN buf := '\\';	--	backslash
+		ELSE
+			IF (ASCII(buf) < 32) THEN
+				buf := '\u' || REPLACE(SUBSTR(TO_CHAR(ASCII(buf), 'XXXX'), 2, 4), ' ', '0');
+			ELSIF (theAsciiOutput) then
+				buf := REPLACE(ASCIISTR(buf), '\', '\u');
+			END IF;
+		END CASE;
+
+		PRAGMA INLINE (add_string, 'YES');
+		json_clob.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>buf);
+	END LOOP;
+END escapeLOB;
 
 END json_utils;
 /

@@ -65,16 +65,6 @@ PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY V
 PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN json_nodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
 
 ----------------------------------------------------------
---	escape the string
---
-FUNCTION escape(theString IN VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE) RETURN VARCHAR2;
-
-----------------------------------------------------------
---	escape the clob
---
-PROCEDURE escapeLOB(theInputLob IN CLOB, theOutputLob IN OUT NOCOPY CLOB, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE);
-
-----------------------------------------------------------
 --	copy output to the browser using htp.prn
 --
 PROCEDURE htp_output_clob(theLobBuf IN CLOB, theJSONP IN VARCHAR2 DEFAULT NULL);
