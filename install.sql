@@ -40,8 +40,6 @@ show errors
 show errors
 @@json_sql.pks
 show errors
-@@json_debug.pks
-show errors
 
 -- install the bodies
 @@json_clob.pkb
@@ -59,6 +57,4 @@ show errors
 @@json_parser.pkb
 show errors
 @@json_sql.pkb
-show errors
-@@json_debug.pkb
 show errors
