@@ -1,11 +1,11 @@
 CREATE OR REPLACE
-TYPE BODY json_node
+TYPE BODY jsonNode
 IS
 
 ----------------------------------------------------------
---	json_node
+--	jsonNode
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode) RETURN SELF AS RESULT
 IS
 BEGIN
 	SELF.typ	:=	NULL;
@@ -18,15 +18,15 @@ BEGIN
 	SELF.nex	:=	NULL;
 	SELF.sub 	:=	NULL;
 	RETURN;
-END json_node;
+END jsonNode;
 
 ----------------------------------------------------------
---	json_node (NULL)
+--	jsonNode (NULL)
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node, theName IN VARCHAR2) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode, theName IN VARCHAR2) RETURN SELF AS RESULT
 IS
 BEGIN
-	SELF.typ	:=	json_const.NODE_TYPE_NULL;
+	SELF.typ	:=	json_utils.NODE_TYPE_NULL;
 	SELF.nam	:=	theName;
 	SELF.str	:=	NULL;
 	SELF.lob	:=	NULL;
@@ -36,15 +36,15 @@ BEGIN
 	SELF.nex	:=	NULL;
 	SELF.sub 	:=	NULL;
 	RETURN;
-END json_node;
+END jsonNode;
 
 ----------------------------------------------------------
---	json_node (VARCHAR2)
+--	jsonNode (VARCHAR2)
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node, theName IN VARCHAR2, theValue IN VARCHAR2) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode, theName IN VARCHAR2, theValue IN VARCHAR2) RETURN SELF AS RESULT
 IS
 BEGIN
-	SELF.typ	:=	json_const.NODE_TYPE_STRING;
+	SELF.typ	:=	json_utils.NODE_TYPE_STRING;
 	SELF.nam	:=	theName;
 	SELF.str	:=	theValue;
 	SELF.lob	:=	NULL;
@@ -54,15 +54,15 @@ BEGIN
 	SELF.nex	:=	NULL;
 	SELF.sub 	:=	NULL;
 	RETURN;
-END json_node;
+END jsonNode;
 
 ----------------------------------------------------------
---	json_node (CLOB)
+--	jsonNode (CLOB)
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node, theName IN VARCHAR2, theValue IN CLOB) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode, theName IN VARCHAR2, theValue IN CLOB) RETURN SELF AS RESULT
 IS
 BEGIN
-	SELF.typ	:=	json_const.NODE_TYPE_LOB;
+	SELF.typ	:=	json_utils.NODE_TYPE_LOB;
 	SELF.nam	:=	theName;
 	SELF.str	:=	NULL;
 	SELF.lob	:=	empty_clob();
@@ -78,15 +78,15 @@ BEGIN
 	END IF;
 	
 	RETURN;
-END json_node;
+END jsonNode;
 
 ----------------------------------------------------------
---	json_node (NUMBER)
+--	jsonNode (NUMBER)
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node, theName IN VARCHAR2, theValue IN NUMBER) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode, theName IN VARCHAR2, theValue IN NUMBER) RETURN SELF AS RESULT
 IS
 BEGIN
-	SELF.typ	:=	CASE WHEN theValue IS NOT NULL THEN json_const.NODE_TYPE_NUMBER ELSE json_const.NODE_TYPE_NULL END;
+	SELF.typ	:=	CASE WHEN theValue IS NOT NULL THEN json_utils.NODE_TYPE_NUMBER ELSE json_utils.NODE_TYPE_NULL END;
 	SELF.nam	:=	theName;
 	SELF.str	:=	NULL;
 	SELF.lob	:=	NULL;
@@ -96,15 +96,15 @@ BEGIN
 	SELF.nex	:=	NULL;
 	SELF.sub 	:=	NULL;
 	RETURN;
-END json_node;
+END jsonNode;
 
 ----------------------------------------------------------
---	json_node (DATE)
+--	jsonNode (DATE)
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node, theName IN VARCHAR2, theValue IN DATE) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode, theName IN VARCHAR2, theValue IN DATE) RETURN SELF AS RESULT
 IS
 BEGIN
-	SELF.typ	:=	CASE WHEN theValue IS NOT NULL THEN json_const.NODE_TYPE_DATE ELSE json_const.NODE_TYPE_NULL END;
+	SELF.typ	:=	CASE WHEN theValue IS NOT NULL THEN json_utils.NODE_TYPE_DATE ELSE json_utils.NODE_TYPE_NULL END;
 	SELF.nam	:=	theName;
 	SELF.str	:=	NULL;
 	SELF.lob	:=	NULL;
@@ -114,12 +114,12 @@ BEGIN
 	SELF.nex	:=	NULL;
 	SELF.sub 	:=	NULL;
 	RETURN;
-END json_node;
+END jsonNode;
 
 ----------------------------------------------------------
---	json_node (BOOLEAN)
+--	jsonNode (BOOLEAN)
 --
-CONSTRUCTOR FUNCTION json_node(SELF IN OUT NOCOPY json_node, theName IN VARCHAR2, theValue IN BOOLEAN) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonNode(SELF IN OUT NOCOPY jsonNode, theName IN VARCHAR2, theValue IN BOOLEAN) RETURN SELF AS RESULT
 IS
 	aNumber	NUMBER;
 BEGIN
@@ -127,7 +127,7 @@ BEGIN
 		aNumber	:=	CASE theValue WHEN TRUE THEN 1 ELSE 0 END;
 	END IF;
 
-	SELF.typ	:=	CASE WHEN theValue IS NOT NULL THEN json_const.NODE_TYPE_BOOLEAN ELSE json_const.NODE_TYPE_NULL END;
+	SELF.typ	:=	CASE WHEN theValue IS NOT NULL THEN json_utils.NODE_TYPE_BOOLEAN ELSE json_utils.NODE_TYPE_NULL END;
 	SELF.nam	:=	theName;
 	SELF.str	:=	NULL;
 	SELF.lob	:=	NULL;
@@ -137,7 +137,7 @@ BEGIN
 	SELF.nex	:=	NULL;
 	SELF.sub 	:=	NULL;
 	RETURN;
-END json_node;
+END jsonNode;
 
 END;
 /

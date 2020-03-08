@@ -11,28 +11,28 @@
  *
  */
 
-set define off
+spool install.log
+
+set define off echo on termout off
 
 -- uninstall all object
 @@uninstall.sql
 
 
 -- install the headers
-@@json_const.pks
-show errors
 @@json_clob.pks
 show errors
-@@json_keys.tps
+@@jsonkeys.tps
 show errors
-@@json_node.tps
+@@jsonnode.tps
 show errors
-@@json_nodes.tps
+@@jsonnodes.tps
 show errors
-@@json_value.tps
+@@jsonvalue.tps
 show errors
-@@json_object.tps
+@@jsonobject.tps
 show errors
-@@json_array.tps
+@@jsonarray.tps
 show errors
 @@json_utils.pks
 show errors
@@ -44,13 +44,13 @@ show errors
 -- install the bodies
 @@json_clob.pkb
 show errors
-@@json_node.tpb
+@@jsonnode.tpb
 show errors
-@@json_value.tpb
+@@jsonvalue.tpb
 show errors
-@@json_object.tpb
+@@jsonobject.tpb
 show errors
-@@json_array.tpb
+@@jsonarray.tpb
 show errors
 @@json_utils.pkb
 show errors
@@ -58,3 +58,7 @@ show errors
 show errors
 @@json_sql.pkb
 show errors
+
+spool off
+
+set define on echo off termout on

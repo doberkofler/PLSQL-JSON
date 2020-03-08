@@ -12,28 +12,28 @@ IS
 -----------
 --  EXAMPLE
 --
---	1) Simple select
+--	2) Simple select
 --
---	1.1) from code
+--	2.1) from code
 --	BEGIN
 --		json_sql.htp('select * from user_tables order by table_name');
 --	END;
 --
---	1.2) from browser
+--	2.2) from browser
 --	json_sql.htp?sqlCmd=select * from user_tables order by table_name
 --
 --
---	2) Select with bind variables and format rows as objects
+--	3) Select with bind variables and format rows as objects
 --
---	2.1) from code
+--	3.1) from code
 --	DECLARE
---		aBind json_object := json_object();
+--		aBind jsonObject := jsonObject();
 --	BEGIN
 --		aBind.put('name', 'F');
---		json_sql.htp(sqlCmd=>'select * from user_tables where UPPER(table_name) > :name', sqlBind=>aBind, format=>json_sql.FORMAT_OBJ);
+--		json_sql.get(sqlCmd=>'select * from user_tables where UPPER(table_name) > :name', sqlBind=>aBind, format=>json_sql.FORMAT_OBJ).htp();
 --	END;
 --
---	2.2) from browser
+--	3.2) from browser
 --		json_sql.htp?sqlCmd=select+*+from+user_tables+where+UPPER(table_name)+%3e+%3aname&sqlbind={"name":"F"}&format=obj
 --
 --
@@ -60,7 +60,7 @@ FORMAT_TAB	CONSTANT	VARCHAR2(3)	:=	'TAB';
 FORMAT_OBJ	CONSTANT	VARCHAR2(3)	:=	'OBJ';
 
 -- null binding
-NULL_OBJECT CONSTANT	json_object := json_object();
+NULL_OBJECT CONSTANT	jsonObject := jsonObject();
 
 ----------------------------------------------------------
 --	GLOBAL PUBLIC ENUMERATIONS
@@ -75,9 +75,14 @@ NULL_OBJECT CONSTANT	json_object := json_object();
 ----------------------------------------------------------
 
 ----------------------------------------------------------
+--	Execute SYS_REFCURSOR and output a json structure
+--
+FUNCTION get(rc IN OUT SYS_REFCURSOR, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN jsonObject;
+
+----------------------------------------------------------
 --	Execute sql statement and return a josn object
 --
-FUNCTION get(theSqlStatement VARCHAR2, theBinding json_object DEFAULT NULL_OBJECT, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN json_object;
+FUNCTION get(sqlCmd VARCHAR2, sqlBind jsonObject DEFAULT NULL_OBJECT, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN jsonObject;
 
 ----------------------------------------------------------
 --	Execute sql statement and output a json structure

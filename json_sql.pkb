@@ -11,14 +11,119 @@ TYPE HandleType IS RECORD
 	dateColumn		DATE
 );
 
+FUNCTION openCursor(rc IN OUT SYS_REFCURSOR) RETURN HandleType;
+FUNCTION openCursor(sqlCmd VARCHAR2, sqlBind jsonObject DEFAULT NULL_OBJECT) RETURN HandleType;
+PROCEDURE bind(theCursor IN INTEGER, theBinding jsonObject);
+PROCEDURE describeAndDefine(theHandle IN OUT NOCOPY HandleType);
+FUNCTION process(theHandle IN OUT NOCOPY HandleType, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN jsonObject;
+PROCEDURE closeCursor(theHandle IN OUT NOCOPY HandleType);
+
+----------------------------------------------------------
+--	get (SYS_REFCURSOR)
+--
+FUNCTION get(rc IN OUT SYS_REFCURSOR, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN jsonObject
+IS
+	aHandle	HandleType;
+	aObject	jsonObject		:=	jsonObject();
+BEGIN
+	-- open cursor
+	aHandle := openCursor(rc=>rc);
+
+	-- process cursor
+	aObject := process(theHandle=>aHandle, format=>format);
+
+	-- close cursor
+    closeCursor(aHandle);
+
+   	RETURN aObject;
+END get;
+
+----------------------------------------------------------
+--	get
+--
+FUNCTION get(sqlCmd VARCHAR2, sqlBind jsonObject DEFAULT NULL_OBJECT, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN jsonObject
+IS
+	aHandle	HandleType;
+	aObject	jsonObject		:=	jsonObject();
+BEGIN
+	-- open cursor
+	aHandle := openCursor(sqlCmd=>sqlCmd, sqlBind=>sqlBind);
+
+	-- process cursor
+	aObject := process(theHandle=>aHandle, format=>format);
+
+	-- close cursor
+    closeCursor(aHandle);
+
+   	RETURN aObject;
+END get;
+
+----------------------------------------------------------
+--	Execute sql statement and output a json structure
+--
+PROCEDURE htp(sqlCmd VARCHAR2, sqlBind IN VARCHAR2 DEFAULT NULL, format IN VARCHAR2 DEFAULT FORMAT_TAB)
+IS
+	aBinding jsonObject := jsonObject();
+BEGIN
+	-- parse
+	IF (sqlBind IS NOT NULL) THEN
+		aBinding := jsonObject(TO_CLOB(sqlBind));
+	END IF;
+
+	-- process and output
+	get(sqlCmd=>sqlCmd, sqlBind=>aBinding, format=>UPPER(format)).htp();
+END htp;
+
+----------------------------------------------------------
+--	openCursor (private)
+--
+FUNCTION openCursor(rc IN OUT SYS_REFCURSOR) RETURN HandleType
+IS
+	aHandle	HandleType;
+BEGIN
+	-- open cursor
+	aHandle.cursorID := dbms_sql.to_cursor_number(rc=>rc);
+
+	-- describe and define columns
+	describeAndDefine(theHandle=>aHandle);
+
+	RETURN aHandle;
+END openCursor;
+
+----------------------------------------------------------
+--	openCursor (private)
+--
+FUNCTION openCursor(sqlCmd VARCHAR2, sqlBind jsonObject DEFAULT NULL_OBJECT) RETURN HandleType
+IS
+	aHandle	HandleType;
+    aStatus	INTEGER;
+BEGIN
+	-- open cursor
+	aHandle.cursorID := dbms_sql.open_cursor;
+
+	-- parse statement
+	dbms_sql.parse(aHandle.cursorID, sqlCmd, dbms_sql.native);
+
+	-- bindings
+	bind(aHandle.cursorID, sqlBind);
+
+	-- describe and define columns
+	describeAndDefine(theHandle=>aHandle);
+
+	-- execute statement
+	aStatus := dbms_sql.execute(aHandle.cursorID);
+
+	RETURN aHandle;
+END openCursor;
+
 ----------------------------------------------------------
 --	bind (private)
 --
-PROCEDURE bind(theCursor IN INTEGER, theBinding json_object)
+PROCEDURE bind(theCursor IN INTEGER, theBinding jsonObject)
 IS
-    aKeys	json_keys		:= theBinding.get_keys();
+    aKeys	jsonKeys		:= theBinding.get_keys();
     aKey	VARCHAR2(32767);
-    aValue	json_value		:= json_value();
+    aValue	jsonValue		:= jsonValue();
 BEGIN
 	FOR i IN 1 .. aKeys.COUNT LOOP
 		aKey	:= aKeys(i);
@@ -35,126 +140,95 @@ BEGIN
 END bind;
 
 ----------------------------------------------------------
---	openCursor
+--	describeAndDefine (private)
 --
-FUNCTION openCursor(theSqlStatement VARCHAR2, theBinding json_object DEFAULT NULL_OBJECT) RETURN HandleType
+PROCEDURE describeAndDefine(theHandle IN OUT NOCOPY HandleType)
 IS
-	aHandle	HandleType;
-    aStatus	INTEGER;
     aCount	INTEGER;
     aType	INTEGER;
 BEGIN
-	-- open cursor
-	aHandle.cursorID := dbms_sql.open_cursor;
-
-	-- parse statement
-	dbms_sql.parse(aHandle.cursorID, theSqlStatement, dbms_sql.native);
-
-	-- bindings
-	bind(aHandle.cursorID, theBinding);
 
 	-- describe columns
-	dbms_sql.describe_columns(aHandle.cursorID, aCount, aHandle.description);
+	dbms_sql.describe_columns(theHandle.cursorID, aCount, theHandle.description);
 
 	-- define columns
 	FOR i IN 1 .. aCount LOOP
-		aType := aHandle.description(i).col_type;
+		aType := theHandle.description(i).col_type;
 		IF (aType IN (1, 112)) THEN
-			dbms_sql.define_column(aHandle.cursorID, i, aHandle.stringColumn, 4000);
+			dbms_sql.define_column(theHandle.cursorID, i, theHandle.stringColumn, 4000);
 		ELSIF (aType = 2) THEN
-			dbms_sql.define_column(aHandle.cursorID, i, aHandle.numberColumn);
+			dbms_sql.define_column(theHandle.cursorID, i, theHandle.numberColumn);
 		ELSIF (aType = 12) THEN
-			dbms_sql.define_column(aHandle.cursorID, i, aHandle.dateColumn);
+			dbms_sql.define_column(theHandle.cursorID, i, theHandle.dateColumn);
 		END IF;
 	END LOOP;
-
-	-- execute statement
-	aStatus := dbms_sql.execute(aHandle.cursorID);
-
-	RETURN aHandle;
-END openCursor;
+END describeAndDefine;
 
 ----------------------------------------------------------
---	closeCursor
+--	process (private)
 --
-PROCEDURE closeCursor(theHandle IN OUT NOCOPY HandleType)
+FUNCTION process(theHandle IN OUT NOCOPY HandleType, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN jsonObject
 IS
-BEGIN
-    dbms_sql.close_cursor(theHandle.cursorID);
-    theHandle.cursorID := NULL;
-    theHandle.description.DELETE;
-END closeCursor;
-
-----------------------------------------------------------
---	get
---
-FUNCTION get(theSqlStatement VARCHAR2, theBinding json_object DEFAULT NULL_OBJECT, format IN VARCHAR2 DEFAULT FORMAT_TAB) RETURN json_object
-IS
-	aHandle	HandleType;
-
 	aName	VARCHAR2(32767);
-	aNames	json_array		:=	json_array();
-	aRowObj	json_object		:=	json_object();
-	aRowArr	json_array		:=	json_array();
-	aRows	json_array		:=	json_array();
-	aObject	json_object		:=	json_object();
+	aNames	jsonArray		:=	jsonArray();
+	aRowObj	jsonObject		:=	jsonObject();
+	aRowArr	jsonArray		:=	jsonArray();
+	aRows	jsonArray		:=	jsonArray();
+	aObject	jsonObject		:=	jsonObject();
 BEGIN
 	IF (format NOT IN (FORMAT_OBJ, FORMAT_TAB)) THEN
 		RAISE VALUE_ERROR;
 	END IF;
 
-	-- open
-	aHandle := openCursor(theSqlStatement=>theSqlStatement, theBinding=>theBinding);
-
 	-- column names
 	IF (format = FORMAT_TAB) THEN
-		FOR i IN 1 .. aHandle.description.COUNT LOOP
-			IF (aHandle.description(i).col_type in (1, 96)) THEN
-				aNames.append(aHandle.description(i).col_name);
+		FOR i IN 1 .. theHandle.description.COUNT LOOP
+			IF (theHandle.description(i).col_type in (1, 96)) THEN
+				aNames.append(theHandle.description(i).col_name);
 			-- number
-			ELSIF (aHandle.description(i).col_type = 2) THEN
-				aNames.append(aHandle.description(i).col_name);
+			ELSIF (theHandle.description(i).col_type = 2) THEN
+				aNames.append(theHandle.description(i).col_name);
 			-- date
-			ELSIF (aHandle.description(i).col_type = 12) THEN
-				aNames.append(aHandle.description(i).col_name);
+			ELSIF (theHandle.description(i).col_type = 12) THEN
+				aNames.append(theHandle.description(i).col_name);
 			END IF;
 		END LOOP;
 	END IF;
 
 	-- process rows
-	WHILE (dbms_sql.fetch_rows(aHandle.cursorID) > 0) LOOP
-		aRowObj := json_object();
-		aRowArr := json_array();
+	WHILE (dbms_sql.fetch_rows(theHandle.cursorID) > 0) LOOP
+		aRowObj := jsonObject();
+		aRowArr := jsonArray();
 
 		-- process columns
-		FOR i IN 1 .. aHandle.description.COUNT LOOP
+		FOR i IN 1 .. theHandle.description.COUNT LOOP
 
 			-- column name
-			aName := aHandle.description(i).col_name;
+			aName := theHandle.description(i).col_name;
 
 			-- string
-			IF (aHandle.description(i).col_type in (1, 96)) THEN
-				dbms_sql.column_value(aHandle.cursorID, i, aHandle.stringColumn);
+			IF (theHandle.description(i).col_type in (1, 96)) THEN
+				dbms_sql.column_value(theHandle.cursorID, i, theHandle.stringColumn);
 				IF (format = FORMAT_OBJ) THEN
-					aRowObj.put(aName, aHandle.stringColumn);
+					aRowObj.put(aName, theHandle.stringColumn);
 				ELSE
-					aRowArr.append(aHandle.stringColumn);
+					aRowArr.append(theHandle.stringColumn);
 				END IF;
 			-- number
-			ELSIF (aHandle.description(i).col_type = 2) THEN
-				dbms_sql.column_value(aHandle.cursorID, i, aHandle.numberColumn);
+			ELSIF (theHandle.description(i).col_type = 2) THEN
+				dbms_sql.column_value(theHandle.cursorID, i, theHandle.numberColumn);
 				IF (format = FORMAT_OBJ) THEN
-					aRowObj.put(aName, aHandle.numberColumn);
+					aRowObj.put(aName, theHandle.numberColumn);
 				ELSE
-					aRowArr.append(aHandle.numberColumn);
+					aRowArr.append(theHandle.numberColumn);
 				END IF;
 			-- date
-			ELSIF (aHandle.description(i).col_type = 12) THEN
-				dbms_sql.column_value(aHandle.cursorID, i, aHandle.dateColumn);
+			ELSIF (theHandle.description(i).col_type = 12) THEN
+				dbms_sql.column_value(theHandle.cursorID, i, theHandle.dateColumn);
 				IF (format = FORMAT_OBJ) THEN
-					aRowObj.put(aName, aHandle.dateColumn);
+					aRowObj.put(aName, theHandle.dateColumn);
 				ELSE
-					aRowArr.append(aHandle.dateColumn);
+					aRowArr.append(theHandle.dateColumn);
 				END IF;
 			END IF;
 
@@ -167,32 +241,28 @@ BEGIN
 		END IF;
 	END LOOP;
 
-	-- close
-    closeCursor(aHandle);
-
 	IF (format = FORMAT_OBJ) THEN
-	    aObject.put('rows', aRows.to_json_value());
-    	RETURN aObject;
+	    aObject.put('rows', aRows.to_jsonValue());
 	ELSE
-	    aObject.put('cols', aNames.to_json_value());
-	    aObject.put('rows', aRows.to_json_value());
-    	RETURN aObject;
+	    aObject.put('cols', aNames.to_jsonValue());
+	    aObject.put('rows', aRows.to_jsonValue());
 	END IF;
-END get;
+
+   	RETURN aObject;
+END process;
 
 ----------------------------------------------------------
---	Execute sql statement and output a json structure
+--	closeCursor (private)
 --
-PROCEDURE htp(sqlCmd VARCHAR2, sqlBind IN VARCHAR2 DEFAULT NULL, format IN VARCHAR2 DEFAULT FORMAT_TAB)
+PROCEDURE closeCursor(theHandle IN OUT NOCOPY HandleType)
 IS
-	aBinding json_object := json_object();
 BEGIN
-	-- parse
-	aBinding := json_object(TO_CLOB(sqlBind));
-
-	-- process and output
-	get(theSqlStatement=>sqlCmd, theBinding=>aBinding, format=>UPPER(format)).htp();
-END htp;
+    IF (dbms_sql.is_open(theHandle.cursorID)) THEN
+    	dbms_sql.close_cursor(theHandle.cursorID);
+    END IF;
+    theHandle.cursorID := NULL;
+    theHandle.description.DELETE;
+END closeCursor;
 
 END json_sql;
 /

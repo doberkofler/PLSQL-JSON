@@ -2,16 +2,16 @@ CREATE OR REPLACE
 PACKAGE BODY json_debug
 IS
 
-PROCEDURE dumpRaw(theNodes IN json_nodes, theResult IN OUT NOCOPY debugTableType);
-PROCEDURE dump(theNodes IN json_nodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY debugTableType);
-FUNCTION dump(theNodes IN json_nodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN debugRecordType;
+PROCEDURE dumpRaw(theNodes IN jsonNodes, theResult IN OUT NOCOPY debugTableType);
+PROCEDURE dump(theNodes IN jsonNodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY debugTableType);
+FUNCTION dump(theNodes IN jsonNodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN debugRecordType;
 FUNCTION lalign(theString IN VARCHAR2, theSize IN BINARY_INTEGER) RETURN VARCHAR2;
 FUNCTION ralign(theString IN VARCHAR2, theSize IN BINARY_INTEGER) RETURN VARCHAR2;
 
 ----------------------------------------------------------
 --	output
 --
-FUNCTION dump(theNode IN json_node, theNodeID IN NUMBER DEFAULT NULL) RETURN VARCHAR2
+FUNCTION dump(theNode IN jsonNode, theNodeID IN NUMBER DEFAULT NULL) RETURN VARCHAR2
 IS
 BEGIN
 	RETURN	CASE theNodeID IS NOT NULL WHEN TRUE THEN 'nodeID=('||theNodeID||') ' ELSE '' END ||
@@ -21,7 +21,7 @@ END dump;
 ----------------------------------------------------------
 --	output
 --
-PROCEDURE output(theData IN json_value, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
+PROCEDURE output(theData IN jsonValue, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
 IS
 	aTitle	VARCHAR2(32767)	:=	theTitle;
 BEGIN
@@ -36,14 +36,14 @@ END output;
 ----------------------------------------------------------
 --	output
 --
-PROCEDURE output(theObject IN json_object, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
+PROCEDURE output(theObject IN jsonObject, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
 IS
 	aTitle	VARCHAR2(32767)	:=	theTitle;
 BEGIN
 	IF (aTitle IS NOT NULL) THEN
 		aTitle := aTitle || ' - ';
 	END IF;
-	aTitle := aTitle || 'json_object with '||theObject.nodes.COUNT||' nodes and lastID is '||theObject.lastID;
+	aTitle := aTitle || 'jsonObject with '||theObject.nodes.COUNT||' nodes and lastID is '||theObject.lastID;
 
 	output(theNodes=>theObject.nodes, theRawFlag=>theRawFlag, theTitle=>aTitle);
 END output;
@@ -51,14 +51,14 @@ END output;
 ----------------------------------------------------------
 --	output
 --
-PROCEDURE output(theArray IN json_array, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
+PROCEDURE output(theArray IN jsonArray, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
 IS
 	aTitle	VARCHAR2(32767)	:=	theTitle;
 BEGIN
 	IF (aTitle IS NOT NULL) THEN
 		aTitle := aTitle || ' - ';
 	END IF;
-	aTitle := aTitle || 'json_array with '||theArray.nodes.COUNT||' nodes and lastID is '||theArray.lastID;
+	aTitle := aTitle || 'jsonArray with '||theArray.nodes.COUNT||' nodes and lastID is '||theArray.lastID;
 
 	output(theNodes=>theArray.nodes, theRawFlag=>theRawFlag, theTitle=>aTitle);
 END output;
@@ -66,7 +66,7 @@ END output;
 ----------------------------------------------------------
 --	output
 --
-PROCEDURE output(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
+PROCEDURE output(theNodes IN jsonNodes, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL)
 IS
 	r	debugTableType	:=	debugTableType();
 	i	BINARY_INTEGER;
@@ -129,7 +129,7 @@ END output;
 ----------------------------------------------------------
 --	asTable
 --
-FUNCTION asTable(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE) RETURN debugTableType PIPELINED
+FUNCTION asTable(theNodes IN jsonNodes, theRawFlag IN BOOLEAN DEFAULT FALSE) RETURN debugTableType PIPELINED
 IS
 	r	debugTableType	:=	debugTableType();
 	i	BINARY_INTEGER;
@@ -153,7 +153,7 @@ END asTable;
 ----------------------------------------------------------
 --	dumpRaw (private)
 --
-PROCEDURE dumpRaw(theNodes IN json_nodes, theResult IN OUT NOCOPY debugTableType)
+PROCEDURE dumpRaw(theNodes IN jsonNodes, theResult IN OUT NOCOPY debugTableType)
 IS
 	i	BINARY_INTEGER;
 BEGIN
@@ -168,7 +168,7 @@ END dumpRaw;
 ----------------------------------------------------------
 --	dump (private)
 --
-PROCEDURE dump(theNodes IN json_nodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY debugTableType)
+PROCEDURE dump(theNodes IN jsonNodes, theFirstNodeID IN NUMBER, theLevel IN OUT NUMBER, theResult IN OUT NOCOPY debugTableType)
 IS
 	l	BINARY_INTEGER	:=	NVL(theLevel, 0);
 	i	BINARY_INTEGER	:=	theFirstNodeID;
@@ -193,12 +193,12 @@ END dump;
 ----------------------------------------------------------
 --	dump (private)
 --
-FUNCTION dump(theNodes IN json_nodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN debugRecordType
+FUNCTION dump(theNodes IN jsonNodes, theNodeID IN NUMBER, theLevel IN NUMBER) RETURN debugRecordType
 IS
-	n	CONSTANT	json_node					:=	theNodes(theNodeID);
+	n	CONSTANT	jsonNode					:=	theNodes(theNodeID);
 	r				debugRecordType;
 
-	FUNCTION getArrayIndex(theNodes IN json_nodes, theNodeID IN NUMBER) RETURN NUMBER
+	FUNCTION getArrayIndex(theNodes IN jsonNodes, theNodeID IN NUMBER) RETURN NUMBER
 	IS
 		p	BINARY_INTEGER;
 		i	BINARY_INTEGER;
@@ -237,44 +237,44 @@ BEGIN
 	--	type dependent information
 	CASE n.typ
 
-	WHEN json_const.NODE_TYPE_NULL THEN
+	WHEN json_utils.NODE_TYPE_NULL THEN
 		r.nodeTypeName	:=	'NULL';
 		r.nodeValue		:=	NULL;
 
-	WHEN json_const.NODE_TYPE_STRING THEN
+	WHEN json_utils.NODE_TYPE_STRING THEN
 		r.nodeTypeName	:=	'STRING';
 		IF (n.str IS NOT NULL) THEN
 			r.nodeValue	:= SUBSTR(n.str, 1, 2000);
 		END IF;
 
-	WHEN json_const.NODE_TYPE_LOB THEN
+	WHEN json_utils.NODE_TYPE_LOB THEN
 		r.nodeTypeName	:=	'LOB';
 		IF (dbms_lob.getlength(lob_loc=>n.lob) > 0) THEN
 			r.nodeValue	:= dbms_lob.substr(lob_loc=>n.lob, amount=>2000, offset=>1);
 		END IF;
 
-	WHEN json_const.NODE_TYPE_NUMBER THEN
+	WHEN json_utils.NODE_TYPE_NUMBER THEN
 		r.nodeTypeName := 'NUMBER';
 		IF (n.num IS NOT NULL) THEN
 			r.nodeValue := TO_CHAR(n.num);
 		END IF;
 
-	WHEN json_const.NODE_TYPE_DATE THEN
+	WHEN json_utils.NODE_TYPE_DATE THEN
 		r.nodeTypeName := 'DATE';
 		IF (n.dat IS NOT NULL) THEN
 			r.nodeValue := TO_CHAR(n.dat, 'YYYYMMDD HH24MISS');
 		END IF;
 
-	WHEN json_const.NODE_TYPE_BOOLEAN THEN
+	WHEN json_utils.NODE_TYPE_BOOLEAN THEN
 		r.nodeTypeName := 'BOOL';
 		IF (n.num IS NOT NULL) THEN
 			r.nodeValue := CASE n.num WHEN 1 THEN 'true' ELSE 'false' END;
 		END IF;
 
-	WHEN json_const.NODE_TYPE_OBJECT THEN
+	WHEN json_utils.NODE_TYPE_OBJECT THEN
 		r.nodeTypeName := '[OBJECT]';
 
-	WHEN json_const.NODE_TYPE_ARRAY THEN
+	WHEN json_utils.NODE_TYPE_ARRAY THEN
 		r.nodeTypeName := '[ARRAY]';
 
 	ELSE

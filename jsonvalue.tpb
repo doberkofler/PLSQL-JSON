@@ -1,18 +1,18 @@
 CREATE OR REPLACE
-TYPE BODY json_value
+TYPE BODY jsonValue
 IS
 
 
 ----------------------------------------------------------
---	json_value
+--	jsonValue
 --
-CONSTRUCTOR FUNCTION json_value(SELF IN OUT NOCOPY json_value) RETURN SELF AS RESULT
+CONSTRUCTOR FUNCTION jsonValue(SELF IN OUT NOCOPY jsonValue) RETURN SELF AS RESULT
 IS
 BEGIN
 	SELF.typ	:=	NULL;
-	SELF.nodes	:=	json_nodes();
+	SELF.nodes	:=	jsonNodes();
 	RETURN;
-END json_value;
+END jsonValue;
 
 ----------------------------------------------------------
 --	get_type
@@ -22,22 +22,22 @@ IS
 BEGIN
 	IF (SELF.typ IS NULL) THEN
 		CASE SELF.nodes(1).typ
-		WHEN json_const.NODE_TYPE_NULL THEN RETURN 'NULL';
-		WHEN json_const.NODE_TYPE_STRING THEN RETURN 'STRING';
-		WHEN json_const.NODE_TYPE_LOB THEN RETURN 'LOB';
-		WHEN json_const.NODE_TYPE_NUMBER THEN RETURN 'NUMBER';
-		WHEN json_const.NODE_TYPE_DATE THEN RETURN 'DATE';
-		WHEN json_const.NODE_TYPE_BOOLEAN THEN RETURN 'BOOLEAN';
+		WHEN json_utils.NODE_TYPE_NULL THEN RETURN 'NULL';
+		WHEN json_utils.NODE_TYPE_STRING THEN RETURN 'STRING';
+		WHEN json_utils.NODE_TYPE_LOB THEN RETURN 'LOB';
+		WHEN json_utils.NODE_TYPE_NUMBER THEN RETURN 'NUMBER';
+		WHEN json_utils.NODE_TYPE_DATE THEN RETURN 'DATE';
+		WHEN json_utils.NODE_TYPE_BOOLEAN THEN RETURN 'BOOLEAN';
 		ELSE
-			raise_application_error(-20100, 'json_node exception: node type ('||SELF.nodes(1).typ||') invalid');
+			raise_application_error(-20100, 'jsonNode exception: node type ('||SELF.nodes(1).typ||') invalid');
 			RETURN NULL;
 		END CASE;
-	ELSIF (SELF.typ = json_const.NODE_TYPE_OBJECT) THEN
+	ELSIF (SELF.typ = json_utils.NODE_TYPE_OBJECT) THEN
 		RETURN 'OBJECT';
-	ELSIF (SELF.typ = json_const.NODE_TYPE_ARRAY) THEN
+	ELSIF (SELF.typ = json_utils.NODE_TYPE_ARRAY) THEN
 		RETURN 'ARRAY';
 	ELSE
-		raise_application_error(-20100, 'json_node exception: node type ('||SELF.typ||') invalid');
+		raise_application_error(-20100, 'jsonNode exception: node type ('||SELF.typ||') invalid');
 		RETURN NULL;
 	END IF;
 END get_type;
@@ -63,11 +63,11 @@ BEGIN
 		IF (dbms_lob.getlength(lob_loc=>SELF.nodes(1).lob) <= 32767) THEN
 			RETURN SELF.nodes(1).lob;
 		ELSE
-			raise_application_error(-20100, 'json_node exception: attempt to get a lob > 32767 as a string');
+			raise_application_error(-20100, 'jsonNode exception: attempt to get a lob > 32767 as a string');
 			RETURN NULL;
 		END IF;
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a string from a node with type ('||SELF.get_type||')');
+		raise_application_error(-20100, 'jsonNode exception: attempt to get a string from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_string;
@@ -83,7 +83,7 @@ BEGIN
 	ELSIF (SELF.is_string()) THEN
 		RETURN TO_CLOB(SELF.nodes(1).str);
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a lob from a node with type ('||SELF.get_type||')');
+		raise_application_error(-20100, 'jsonNode exception: attempt to get a lob from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_lob;
@@ -97,7 +97,7 @@ BEGIN
 	IF (SELF.is_number()) THEN
 		RETURN SELF.nodes(1).num;
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a number from a node with type ('||SELF.get_type||')');
+		raise_application_error(-20100, 'jsonNode exception: attempt to get a number from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_number;
@@ -111,7 +111,7 @@ BEGIN
 	IF (SELF.is_date()) THEN
 		RETURN SELF.nodes(1).dat;
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a date from a node with type ('||SELF.get_type||')');
+		raise_application_error(-20100, 'jsonNode exception: attempt to get a date from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_date;
@@ -125,7 +125,7 @@ BEGIN
 	IF (SELF.is_bool()) THEN
 		RETURN (SELF.nodes(1).num = 1);
 	ELSE
-		raise_application_error(-20100, 'json_node exception: attempt to get a boolean from a node with type ('||SELF.get_type||')');
+		raise_application_error(-20100, 'jsonNode exception: attempt to get a boolean from a node with type ('||SELF.get_type||')');
 		RETURN NULL;
 	END IF;
 END get_bool;

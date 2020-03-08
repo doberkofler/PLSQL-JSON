@@ -1,0 +1,3 @@
+CREATE OR REPLACE
+TYPE jsonNodes AS TABLE OF jsonNode;
+/

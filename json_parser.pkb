@@ -30,7 +30,7 @@ FUNCTION prepareClob(buf IN CLOB) RETURN json_src;
 FUNCTION prepareVARCHAR2(buf IN VARCHAR2) RETURN json_src;
 FUNCTION lexer(jsrc IN OUT NOCOPY json_src) RETURN lTokens;
 
-PROCEDURE parseMem(tokens lTokens, indx IN OUT PLS_INTEGER, mem_name VARCHAR2, mem_indx NUMBER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY json_nodes);
+PROCEDURE parseMem(tokens lTokens, indx IN OUT PLS_INTEGER, mem_name VARCHAR2, mem_indx NUMBER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY jsonNodes);
 
 ----------------------------------------------------------
 -- GLOBAL MODULES
@@ -551,19 +551,19 @@ END p_error;
 ----------------------------------------------------------
 --	parseObj (private)
 --
-PROCEDURE parseObj(tokens lTokens, indx IN OUT NOCOPY PLS_INTEGER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY json_nodes)
+PROCEDURE parseObj(tokens lTokens, indx IN OUT NOCOPY PLS_INTEGER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY jsonNodes)
 IS
 	TYPE memmap IS TABLE OF NUMBER INDEX BY VARCHAR2(4000); -- i've read somewhere that this is not possible - but it is!
 	mymap memmap;
 	nullelemfound BOOLEAN := FALSE;
 
 	--yyy	obj json;
-	obj json_object := json_object();
+	obj jsonObject := jsonObject();
 
 	tok rToken;
 	mem_name VARCHAR(4000);
 	--yyy	arr json_value_array := json_value_array();
-	arr json_nodes := json_nodes();
+	arr jsonNodes := jsonNodes();
 BEGIN
 	debug('parseObj - begin');
 
@@ -642,12 +642,12 @@ END parseObj;
 ----------------------------------------------------------
 --	parseArr (private)
 --
-PROCEDURE parseArr(tokens lTokens, indx IN OUT NOCOPY PLS_INTEGER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY json_nodes)
+PROCEDURE parseArr(tokens lTokens, indx IN OUT NOCOPY PLS_INTEGER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY jsonNodes)
 IS
 	aNodeID		BINARY_INTEGER;
 	aLastID		BINARY_INTEGER;
 	tok			rToken;
-	aNode		json_node		:=	json_node();
+	aNode		jsonNode		:=	jsonNode();
 BEGIN
 	IF (indx > tokens.count) THEN
 		p_error('more elements in array was excepted', tok);
@@ -660,7 +660,7 @@ BEGIN
 
 		WHEN 'TRUE' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx);
-    		aNode		:= json_node(NULL, TRUE);
+    		aNode		:= jsonNode(NULL, TRUE);
     		aNode.par	:= theParentID;
 			aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 			IF (theLastID IS NOT NULL) THEN
@@ -670,7 +670,7 @@ BEGIN
 
 		WHEN 'FALSE' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx);
-    		aNode		:= json_node(NULL, FALSE);
+    		aNode		:= jsonNode(NULL, FALSE);
     		aNode.par	:= theParentID;
 			aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 			IF (theLastID IS NOT NULL) THEN
@@ -680,7 +680,7 @@ BEGIN
 
 		WHEN 'NULL' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx);
-    		aNode		:= json_node(NULL);
+    		aNode		:= jsonNode(NULL);
     		aNode.par	:= theParentID;
 			aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 			IF (theLastID IS NOT NULL) THEN
@@ -690,7 +690,7 @@ BEGIN
 
 		WHEN 'STRING' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx||' value: '||CASE WHEN tok.data_overflow IS NOT NULL THEN tok.data_overflow ELSE tok.data END);
-    		aNode		:= json_node(NULL, CASE WHEN tok.data_overflow IS NOT NULL THEN tok.data_overflow ELSE tok.data END);
+    		aNode		:= jsonNode(NULL, CASE WHEN tok.data_overflow IS NOT NULL THEN tok.data_overflow ELSE tok.data END);
     		aNode.par	:= theParentID;
 			aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 			IF (theLastID IS NOT NULL) THEN
@@ -700,7 +700,7 @@ BEGIN
 
 		WHEN 'ESTRING' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx||' value: '||tok.data_overflow);
-    		aNode		:= json_node(NULL, tok.data_overflow);
+    		aNode		:= jsonNode(NULL, tok.data_overflow);
     		aNode.par	:= theParentID;
 			aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 			IF (theLastID IS NOT NULL) THEN
@@ -710,7 +710,7 @@ BEGIN
 
 		WHEN 'NUMBER' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx||' value: '||TO_NUMBER(REPLACE(tok.data, '.', decimalpoint)));
-    		aNode		:= json_node(NULL, TO_NUMBER(REPLACE(tok.data, '.', decimalpoint)));
+    		aNode		:= jsonNode(NULL, TO_NUMBER(REPLACE(tok.data, '.', decimalpoint)));
     		aNode.par	:= theParentID;
 			aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 			IF (theLastID IS NOT NULL) THEN
@@ -721,7 +721,7 @@ BEGIN
 		WHEN '{' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx);
 
-	    	aNode			:= json_node();
+	    	aNode			:= jsonNode();
 	    	aNode.typ		:= 'O';
 	    	aNode.sub		:= theNodes.COUNT + 2;
 			aNodeID			:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
@@ -746,7 +746,7 @@ BEGIN
 		WHEN '[' THEN
     		debug('parseArr - type: '||tok.type_name||' indx: '||indx);
 
-	    	aNode			:= json_node();
+	    	aNode			:= jsonNode();
 	    	aNode.typ		:= 'A';
 	    	aNode.sub		:= theNodes.COUNT + 2;
 			aNodeID			:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
@@ -797,12 +797,12 @@ end parseArr;
 ----------------------------------------------------------
 --	parseMem (private)
 --
-PROCEDURE parseMem(tokens lTokens, indx IN OUT PLS_INTEGER, mem_name VARCHAR2, mem_indx NUMBER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY json_nodes)
+PROCEDURE parseMem(tokens lTokens, indx IN OUT PLS_INTEGER, mem_name VARCHAR2, mem_indx NUMBER, theParentID IN OUT BINARY_INTEGER, theLastID IN OUT BINARY_INTEGER, theNodes IN OUT NOCOPY jsonNodes)
 IS
 	tok			rToken;
 	aNodeID		BINARY_INTEGER;
 	aLastID		BINARY_INTEGER;
-	aNode		json_node		:=	json_node();
+	aNode		jsonNode		:=	jsonNode();
 BEGIN
 	tok := tokens(indx);
 
@@ -810,7 +810,7 @@ BEGIN
 
 	WHEN 'TRUE' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name);
-   		aNode		:= json_node(mem_name, TRUE);
+   		aNode		:= jsonNode(mem_name, TRUE);
    		aNode.par	:= theParentID;
 		aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 		IF (theLastID IS NOT NULL) THEN
@@ -820,7 +820,7 @@ BEGIN
 
 	WHEN 'FALSE' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name);
-   		aNode		:= json_node(mem_name, FALSE);
+   		aNode		:= jsonNode(mem_name, FALSE);
    		aNode.par	:= theParentID;
 		aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 		IF (theLastID IS NOT NULL) THEN
@@ -830,7 +830,7 @@ BEGIN
 
 	WHEN 'NULL' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name);
-   		aNode		:= json_node(mem_name);
+   		aNode		:= jsonNode(mem_name);
    		aNode.par	:= theParentID;
 		aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 		IF (theLastID IS NOT NULL) THEN
@@ -840,7 +840,7 @@ BEGIN
 
 	WHEN 'STRING' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name||' value: '||CASE WHEN tok.data_overflow IS NOT NULL THEN tok.data_overflow ELSE tok.data END);
-   		aNode		:= json_node(mem_name, CASE WHEN tok.data_overflow IS NOT NULL THEN tok.data_overflow ELSE tok.data END);
+   		aNode		:= jsonNode(mem_name, CASE WHEN tok.data_overflow IS NOT NULL THEN tok.data_overflow ELSE tok.data END);
    		aNode.par	:= theParentID;
 		aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 		IF (theLastID IS NOT NULL) THEN
@@ -850,7 +850,7 @@ BEGIN
 
 	WHEN 'ESTRING' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name||' value: '||tok.data_overflow);
-   		aNode		:= json_node(mem_name, tok.data_overflow);
+   		aNode		:= jsonNode(mem_name, tok.data_overflow);
    		aNode.par	:= theParentID;
 		aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 		IF (theLastID IS NOT NULL) THEN
@@ -860,7 +860,7 @@ BEGIN
 
 	WHEN 'NUMBER' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name||' value: '||TO_NUMBER(REPLACE(tok.data, '.', decimalpoint)));
-   		aNode		:= json_node(mem_name, TO_NUMBER(REPLACE(tok.data, '.', decimalpoint)));
+   		aNode		:= jsonNode(mem_name, TO_NUMBER(REPLACE(tok.data, '.', decimalpoint)));
    		aNode.par	:= theParentID;
 		aNodeID		:= json_utils.addNode(theNodes=>theNodes, theNode=>aNode);
 		IF (theLastID IS NOT NULL) THEN
@@ -871,7 +871,7 @@ BEGIN
 	WHEN '{' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name);
 
-    	aNode			:= json_node();
+    	aNode			:= jsonNode();
     	aNode.typ		:= 'O';
     	aNode.nam		:= mem_name;
     	aNode.sub		:= theNodes.COUNT + 2;
@@ -897,7 +897,7 @@ BEGIN
 	WHEN '[' THEN
     	debug('parseMem - type: '||tok.type_name||' name: '||mem_name);
 
-    	aNode			:= json_node();
+    	aNode			:= jsonNode();
     	aNode.typ		:= 'A';
     	aNode.nam		:= mem_name;
     	aNode.sub		:= theNodes.COUNT + 2;
@@ -931,11 +931,11 @@ END parseMem;
 ----------------------------------------------------------
 --	parse_list
 --
-FUNCTION parse_list(str CLOB) RETURN json_nodes
+FUNCTION parse_list(str CLOB) RETURN jsonNodes
 IS
 	tokens	lTokens;
 	--yyy	obj		json_list;
-	obj		json_nodes := json_nodes();
+	obj		jsonNodes := jsonNodes();
 	indx	PLS_INTEGER := 1;
 	jsrc	json_src;
 BEGIN
@@ -959,10 +959,10 @@ END parse_list;
 ----------------------------------------------------------
 --	parser
 --
-FUNCTION parser(str CLOB) RETURN json_nodes
+FUNCTION parser(str CLOB) RETURN jsonNodes
 IS
 	tokens		lTokens;
-	obj			json_nodes := json_nodes();
+	obj			jsonNodes := jsonNodes();
 
 	indx		PLS_INTEGER		:= 1;
 	jsrc		json_src;
@@ -1003,11 +1003,11 @@ END parser;
 ----------------------------------------------------------
 --	parse_any
 --
-FUNCTION parse_any(str CLOB) RETURN /*yyy	json_value*/json_nodes
+FUNCTION parse_any(str CLOB) RETURN /*yyy	jsonValue*/jsonNodes
 IS
 	tokens	lTokens;
 	--yyy	obj		json_list;
-	obj		json_array := json_array();
+	obj		jsonArray := jsonArray();
 	indx	PLS_INTEGER := 1;
 	jsrc	json_src;
 BEGIN

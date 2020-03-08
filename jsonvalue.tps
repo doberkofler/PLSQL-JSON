@@ -1,11 +1,11 @@
 CREATE OR REPLACE
-TYPE json_value IS OBJECT
+TYPE jsonValue IS OBJECT
 (
-	typ		CHAR(1),				--	O=Object, A=array or NULL for all other basic types
-	nodes	json_nodes,				--	if typ is NULL the actual type is in the first and only node of the list
+	typ		VARCHAR(1),				--	O=Object, A=array or NULL for all other basic types
+	nodes	jsonNodes,				--	if typ is NULL the actual type is in the first and only node of the list
 
 	--	Default constructor
-	CONSTRUCTOR FUNCTION json_value(SELF IN OUT NOCOPY json_value) RETURN SELF AS RESULT,
+	CONSTRUCTOR FUNCTION jsonValue(SELF IN OUT NOCOPY jsonValue) RETURN SELF AS RESULT,
 
 	--	Member getter methods
 	MEMBER FUNCTION get_type RETURN VARCHAR2,

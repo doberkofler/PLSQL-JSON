@@ -17,12 +17,12 @@ TYPE debugRecordType IS RECORD
 );
 TYPE debugTableType IS TABLE OF debugRecordType;
 
-FUNCTION dump(theNode IN json_node, theNodeID IN NUMBER DEFAULT NULL) RETURN VARCHAR2;
-PROCEDURE output(theData IN json_value, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
-PROCEDURE output(theObject IN json_object, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
-PROCEDURE output(theArray IN json_array, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
-PROCEDURE output(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
-FUNCTION asTable(theNodes IN json_nodes, theRawFlag IN BOOLEAN DEFAULT FALSE) RETURN debugTableType PIPELINED;
+FUNCTION dump(theNode IN jsonNode, theNodeID IN NUMBER DEFAULT NULL) RETURN VARCHAR2;
+PROCEDURE output(theData IN jsonValue, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
+PROCEDURE output(theObject IN jsonObject, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
+PROCEDURE output(theArray IN jsonArray, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
+PROCEDURE output(theNodes IN jsonNodes, theRawFlag IN BOOLEAN DEFAULT FALSE, theTitle IN VARCHAR2 DEFAULT NULL);
+FUNCTION asTable(theNodes IN jsonNodes, theRawFlag IN BOOLEAN DEFAULT FALSE) RETURN debugTableType PIPELINED;
 
 END json_debug;
 /
