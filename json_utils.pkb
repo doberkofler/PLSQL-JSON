@@ -759,8 +759,8 @@ BEGIN
 		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
 		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
 		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
-		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
-		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(12) THEN buf := '\f';	--	formfeed  f = U+000C
+		WHEN CHR(13) THEN buf := '\r';	--	carret    r = U+000D
 		WHEN CHR(34) THEN buf := '\"';
 		WHEN CHR(47) THEN				--	slash
 			IF (theEscapeSolitus) THEN
