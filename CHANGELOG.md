@@ -13,10 +13,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 
+## [0.7.0] - 2020-03-09
+
+### Changed
+- Added output configuration option `newline_char` for the end of line style and `indentation_char` for the identation style.
+
+
 ## [0.6.0] - 2020-03-09
 
 ### Changed
-- Added api `get_default_options`, `get_options` and `set_options` to `json_utils`package to configure (`Pretty`, `AsciiOutput` and `EscapeSolitus`) the output.
+- Added api `get_default_options`, `get_options` and `set_options` to `json_utils`package to configure (`Pretty`, `ascii_output` and `escape_solitus`) the output.
 - Added support for formatted (pretty) json output with the option `Pretty`.
 
 

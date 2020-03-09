@@ -1363,34 +1363,37 @@ END UT_BigObject;
 PROCEDURE UT_PrettyOutput
 IS
 	aOldOptions	json_utils.outputOptionsType	:=	json_utils.get_options();
-	aOptions	json_utils.outputOptionsType	:=	json_utils.get_default_options();
+	aOptions	json_utils.outputOptionsType	:=	json_utils.get_options();
 
 	aObject1	jsonObject						:=	jsonObject();
 	aObject2	jsonObject						:=	jsonObject();
 	aArray		jsonArray						:=	jsonArray();
 
 	aLob		CLOB							:=	empty_clob();
-
-	aResult		CLOB							:=	'{
-	"o1": {
-		"a1": [
-			1,
-			2,
-			3
-		],
-		"a2": [
-			1,
-			2,
-			3
-		]
-	}
-}';
+	aResult		CLOB;
 BEGIN
 	UT_util.module('UT_PrettyOutput');
 
 	-- set pretty output
 	aOptions.Pretty := TRUE;
 	json_utils.set_options(aOptions);
+
+	-- result
+	aResult :=
+		'{'||aOptions.newline_char||
+		aOptions.indentation_char||'"o1": {'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||'"a1": ['||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'1,'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'2,'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'3'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||'],'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||'"a2": ['||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'1,'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'2,'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'3'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||']'||aOptions.newline_char||
+		aOptions.indentation_char||'}'||aOptions.newline_char||
+		'}';
 
 	-- allocate clob
 	dbms_lob.createtemporary(aLob, TRUE);

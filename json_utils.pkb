@@ -4,10 +4,6 @@ IS
 
 outputOptions OutputOptionsType;
 
-NEW_LINE CONSTANT VARCHAR2(2) := '
-';
-INDENTATION_CHARACTER CONSTANT VARCHAR2(1) := '	';
-
 PROCEDURE copySubNodes(theTarget IN OUT NOCOPY jsonNodes, theFirstID IN OUT NOCOPY BINARY_INTEGER, theParentID IN BINARY_INTEGER, theSource IN jsonNodes, theFirstSourceID IN BINARY_INTEGER);
 FUNCTION boolean_to_json(theBoolean IN NUMBER) RETURN VARCHAR2;
 FUNCTION number_to_json(theNumber IN NUMBER) RETURN VARCHAR2;
@@ -39,6 +35,14 @@ END get_options;
 PROCEDURE set_options(theOptions IN outputOptionsType)
 IS
 BEGIN
+	IF (theOptions.newline_char NOT IN (EOL_LF, EOL_CR, EOL_CRLF)) THEN
+		raise_application_error(-20100, 'Invalid newline style. Use EOL constant', TRUE);
+	END IF;
+
+	IF (theOptions.indentation_char NOT IN (IND_TAB, IND_SPACE_1, IND_SPACE_2, IND_SPACE_3, IND_SPACE_4)) THEN
+		raise_application_error(-20100, 'Invalid indentation style. Use IND constant', TRUE);
+	END IF;
+
 	outputOptions := theOptions;
 END set_options;
 
@@ -540,7 +544,7 @@ BEGIN
 	--	Add the property name
 	IF (aNode.nam IS NOT NULL) THEN
 		PRAGMA INLINE (escape, 'YES');
-		aName := GAP || '"' || escape(theString=>aNode.nam, theAsciiOutput=>outputOptions.AsciiOutput, theEscapeSolitus=>outputOptions.EscapeSolitus) || '":';
+		aName := GAP || '"' || escape(theString=>aNode.nam, theAsciiOutput=>outputOptions.ascii_output, theEscapeSolitus=>outputOptions.escape_solitus) || '":';
 		IF (outputOptions.Pretty) THEN
 			aName := aName || ' ';
 		END IF;
@@ -558,13 +562,13 @@ BEGIN
 
 	WHEN json_utils.NODE_TYPE_STRING THEN
 		PRAGMA INLINE (escape, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"' || escape(theString=>aNode.str, theAsciiOutput=>outputOptions.AsciiOutput, theEscapeSolitus=>outputOptions.EscapeSolitus) || '"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"' || escape(theString=>aNode.str, theAsciiOutput=>outputOptions.ascii_output, theEscapeSolitus=>outputOptions.escape_solitus) || '"');
 
 	WHEN json_utils.NODE_TYPE_LOB THEN
 		PRAGMA INLINE (add_string, 'YES');
 		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"');
 		PRAGMA INLINE (escapeLOB, 'YES');
-		escapeLOB(theInputLob=>aNode.lob, theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theAsciiOutput=>outputOptions.AsciiOutput, theEscapeSolitus=>outputOptions.EscapeSolitus);
+		escapeLOB(theInputLob=>aNode.lob, theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theAsciiOutput=>outputOptions.ascii_output, theEscapeSolitus=>outputOptions.escape_solitus);
 		PRAGMA INLINE (add_string, 'YES');
 		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
 
@@ -604,16 +608,16 @@ IS
 BEGIN
 	-- open bracket {
 	IF (outputOptions.Pretty) THEN
-		aBracket := '{' || NEW_LINE;
+		aBracket := '{' || outputOptions.newline_char;
 	ELSE
 		aBracket := '{';
 	END IF;
 	PRAGMA INLINE (add_string, 'YES');
 	json_utils.add_string(theLobBuf, theStrBuf, aBracket);
-	
+
 	-- compute the delimiter
 	IF (outputOptions.Pretty) THEN
-		aDelimiter := ',' || NEW_LINE;
+		aDelimiter := ',' || outputOptions.newline_char;
 	ELSE
 		aDelimiter := ',';
 	END IF;
@@ -637,7 +641,7 @@ BEGIN
 
 	-- close bracket }
 	IF (outputOptions.Pretty) THEN
-		aBracket := NEW_LINE || GAP || '}';
+		aBracket := outputOptions.newline_char || GAP || '}';
 	ELSE
 		aBracket := GAP || '}';
 	END IF;
@@ -664,7 +668,7 @@ IS
 BEGIN
 	-- open bracket {
 	IF (outputOptions.Pretty) THEN
-		aBracket := '[' || NEW_LINE;
+		aBracket := '[' || outputOptions.newline_char;
 	ELSE
 		aBracket := '[';
 	END IF;
@@ -673,7 +677,7 @@ BEGIN
 
 	-- compute the delimiter
 	IF (outputOptions.Pretty) THEN
-		aDelimiter := ',' || NEW_LINE;
+		aDelimiter := ',' || outputOptions.newline_char;
 	ELSE
 		aDelimiter := ',';
 	END IF;
@@ -697,7 +701,7 @@ BEGIN
 
 	-- close bracket }
 	IF (outputOptions.Pretty) THEN
-		aBracket := NEW_LINE || GAP || ']';
+		aBracket := outputOptions.newline_char || GAP || ']';
 	ELSE
 		aBracket := GAP || ']';
 	END IF;
@@ -777,7 +781,7 @@ FUNCTION get_gap(theIndentation IN INTEGER) RETURN VARCHAR2
 IS
 BEGIN
 	IF (outputOptions.Pretty) THEN
-		RETURN RPAD(INDENTATION_CHARACTER, theIndentation, INDENTATION_CHARACTER);
+		RETURN RPAD(outputOptions.indentation_char, theIndentation, outputOptions.indentation_char);
 	ELSE
 		RETURN '';
 	END IF;
