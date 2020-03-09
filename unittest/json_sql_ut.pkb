@@ -1,7 +1,7 @@
 CREATE OR REPLACE
 PACKAGE BODY json_sql_UT IS
 
---	$Id: json_sql_ut.pkb 49652 2016-12-08 18:17:30Z doberkofler $
+--	$Id: json_sql_ut.pkb 51368 2017-06-19 13:02:35Z doberkofler $
 
 ----------------------------------------------------------
 --	PRIVATE TYPES
@@ -33,7 +33,7 @@ IS
 	ROW_3	CONSTANT	VARCHAR2(2000)	:=	'{"ID":3,"NAME":"martin donovan","BIRTHDAY":"'||toJSON(TODAY+2)||'"}';
 
 	aSql				VARCHAR2(2000);
-	aBinding			json_object		:=	json_object();
+	aBinding			jsonObject		:=	jsonObject();
 	aLob				CLOB			:=	empty_clob();
 BEGIN
 	UT_util.module('UT_object');
@@ -43,7 +43,7 @@ BEGIN
 
 	-- select all rows
 	aSql := 'SELECT * FROM temp_json_sql_ut ORDER BY id';
-	json_sql.get(theSqlStatement=>aSql, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{"rows":['||ROW_1||','||ROW_2||','||ROW_3||']}'),
@@ -52,7 +52,7 @@ BEGIN
 
 	-- select one row
 	aSql := 'SELECT * FROM temp_json_sql_ut WHERE id = 2';
-	json_sql.get(theSqlStatement=>aSql, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{"rows":['||ROW_2||']}'),
@@ -62,7 +62,7 @@ BEGIN
 	-- select one row using bind variables
 	aSql := 'SELECT * FROM temp_json_sql_ut WHERE id = :id';
 	aBinding.put('id', 3);
-	json_sql.get(theSqlStatement=>aSql, theBinding=>aBinding, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql, sqlBind=>aBinding, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{"rows":['||ROW_3||']}'),
@@ -71,7 +71,7 @@ BEGIN
 
 	-- select no row
 	aSql := 'SELECT * FROM temp_json_sql_ut WHERE id = 0';
-	json_sql.get(theSqlStatement=>aSql, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql, format=>json_sql.FORMAT_OBJ).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{"rows":[]}'),
@@ -93,7 +93,7 @@ IS
 	ROW_3	CONSTANT	VARCHAR2(2000)	:=	'[3,"martin donovan","'||toJSON(TODAY+2)||'"]';
 
 	aSql				VARCHAR2(2000);
-	aBinding			json_object		:=	json_object();
+	aBinding			jsonObject		:=	jsonObject();
 	aLob				CLOB			:=	empty_clob();
 BEGIN
 	UT_util.module('UT_array');
@@ -103,7 +103,7 @@ BEGIN
 
 	-- select all rows
 	aSql := 'SELECT * FROM temp_json_sql_ut ORDER BY id';
-	json_sql.get(theSqlStatement=>aSql).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{'||COLS||',"rows":['||ROW_1||','||ROW_2||','||ROW_3||']}'),
@@ -112,7 +112,7 @@ BEGIN
 
 	-- select one row
 	aSql := 'SELECT * FROM temp_json_sql_ut WHERE id = 2';
-	json_sql.get(theSqlStatement=>aSql).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{'||COLS||',"rows":['||ROW_2||']}'),
@@ -122,7 +122,7 @@ BEGIN
 	-- select one row using bind variables
 	aSql := 'SELECT * FROM temp_json_sql_ut WHERE id = :id';
 	aBinding.put('id', 3);
-	json_sql.get(theSqlStatement=>aSql, theBinding=>aBinding).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql, sqlBind=>aBinding).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{'||COLS||',"rows":['||ROW_3||']}'),
@@ -131,7 +131,7 @@ BEGIN
 
 	-- select no row
 	aSql := 'SELECT * FROM temp_json_sql_ut WHERE id = 0';
-	json_sql.get(theSqlStatement=>aSql).to_clob(theLobBuf=>aLob);
+	json_sql.get(sqlCmd=>aSql).to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	aSql,
 					theComputed	=>	aLob,
 					theExpected	=>	TO_CLOB('{'||COLS||',"rows":[]}'),

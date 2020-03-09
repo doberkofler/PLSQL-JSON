@@ -36,6 +36,10 @@ CREATE TABLE UT_test_table
 );
 CREATE SEQUENCE UT_test_seq START WITH 1;
 
+-- install the json debug package
+@@../json_debug.pks
+@@../json_debug.pkb
+
 -- install the unit test framework
 @@UT_util.pks
 show errors

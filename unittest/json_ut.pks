@@ -37,11 +37,6 @@ PACKAGE json_UT IS
 ----------------------------------------------------------
 
 ----------------------------------------------------------
---	get a json object using htp
---
-PROCEDURE getJSON(theCount IN NUMBER);
-
-----------------------------------------------------------
 --	Run unit tests
 --
 PROCEDURE prepare;

@@ -756,11 +756,11 @@ BEGIN
 		buf := SUBSTR(theString, i, 1);
 
 		CASE buf
-		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
-		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
-		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
-		WHEN CHR(12) THEN buf := '\f';	--	formfeed  f = U+000C
-		WHEN CHR(13) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(8)  THEN buf := '\b';	--	backspace b = U+0008 = chr(8)
+		WHEN CHR(9)  THEN buf := '\t';	--	tabulator t = U+0009 = chr(9)
+		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A = chr(10)
+		WHEN CHR(12) THEN buf := '\f';	--	formfeed  f = U+000C = chr(12)
+		WHEN CHR(13) THEN buf := '\r';	--	carret    r = U+000D = chr(13)
 		WHEN CHR(34) THEN buf := '\"';
 		WHEN CHR(47) THEN				--	slash
 			IF (theEscapeSolitus) THEN

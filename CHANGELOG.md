@@ -18,10 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - No longer install debug module by default.
 - Removed package json_cost and json_clob.
+- Removed the obsolete performance tests.
 
 
 ### Fixed
 - Required naming changes to run on current Oracle versions that now also have json support.
+- Fixed an error when converting \f and \r.
 
 
 ## [0.4.1] - 2016-12-22

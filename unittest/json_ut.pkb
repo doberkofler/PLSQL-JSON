@@ -1,7 +1,7 @@
 CREATE OR REPLACE
 PACKAGE BODY json_UT IS
 
---	$Id: json_ut.pkb 49652 2016-12-08 18:17:30Z doberkofler $
+--	$Id: json_ut.pkb 52788 2017-12-22 14:03:41Z doberkofler $
 
 ----------------------------------------------------------
 --	PRIVATE TYPES
@@ -11,8 +11,8 @@ PACKAGE BODY json_UT IS
 --	LOCAL MODULES
 ----------------------------------------------------------
 
-PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN json_nodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL);
-PROCEDURE getComplexObject(theJsonObject IN OUT NOCOPY json_object, theJsonString IN OUT NOCOPY CLOB);
+PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN jsonNodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL);
+PROCEDURE getComplexObject(theJsonObject IN OUT NOCOPY jsonObject, theJsonString IN OUT NOCOPY CLOB);
 PROCEDURE clearLob(theLob IN OUT NOCOPY CLOB);
 PROCEDURE setLob(theLob IN OUT NOCOPY CLOB, theValue IN VARCHAR2);
 PROCEDURE fillLob(theLob IN OUT NOCOPY CLOB);
@@ -39,7 +39,7 @@ IS
 
 	aList			TestValueList;
 	
-	aObject			json_object	:=	json_object();
+	aObject			jsonObject	:=	jsonObject();
 
 	aLob			CLOB		:=	empty_clob();
 
@@ -67,8 +67,17 @@ BEGIN
 	add(typ=>'S', str=>NULL,														result=>'{"value":""}');
 	add(typ=>'S', str=>'',															result=>'{"value":""}');
 	add(typ=>'S', str=>'a',															result=>'{"value":"a"}');
-	add(typ=>'S', str=>CHR(8)||CHR(9)||CHR(10)||CHR(13)||CHR(14)||CHR(34)||CHR(92),	result=>'{"value":"\b\t\n\f\r\"\\"}');
-	add(typ=>'S', str=>CHR(1)||CHR(2)||CHR(30)||CHR(31),							result=>'{"value":"\u0001\u0002\u001E\u001F"}');
+	add(typ=>'S', str=>CHR(8),														result=>'{"value":"\b"}');
+	add(typ=>'S', str=>CHR(9),														result=>'{"value":"\t"}');
+	add(typ=>'S', str=>CHR(10),														result=>'{"value":"\n"}');
+	add(typ=>'S', str=>CHR(12),														result=>'{"value":"\f"}');
+	add(typ=>'S', str=>CHR(13),														result=>'{"value":"\r"}');
+	add(typ=>'S', str=>CHR(34),														result=>'{"value":"\""}');
+	add(typ=>'S', str=>CHR(92),														result=>'{"value":"\\"}');
+	add(typ=>'S', str=>CHR(1),														result=>'{"value":"\u0001"}');
+	add(typ=>'S', str=>CHR(2),														result=>'{"value":"\u0002"}');
+	add(typ=>'S', str=>CHR(30),														result=>'{"value":"\u001E"}');
+	add(typ=>'S', str=>CHR(31),														result=>'{"value":"\u001F"}');
 	add(typ=>'N', num=>0,															result=>'{"value":0}');
 	add(typ=>'N', num=>-1,															result=>'{"value":-1}');
 	add(typ=>'N', num=>1,															result=>'{"value":1}');
@@ -87,7 +96,7 @@ BEGIN
 
 	--	check JSON string
 	FOR i IN 1 .. aList.COUNT LOOP
-		aObject := json_object();
+		aObject := jsonObject();
 		
 		CASE aList(i).typ
 		WHEN '0' THEN
@@ -123,7 +132,7 @@ IS
 	aValue		CLOB		:=	EMPTY_CLOB();
 	aOutput		CLOB		:=	EMPTY_CLOB();
 	aExpected	CLOB		:=	EMPTY_CLOB();
-	aObj		json_object	:=	json_object();
+	aObj		jsonObject	:=	jsonObject();
 BEGIN
 	UT_util.module('UT_LobValues');
 
@@ -133,7 +142,7 @@ BEGIN
 	dbms_lob.createtemporary(lob_loc=>aExpected, cache=>TRUE, dur=>dbms_lob.session);
 
 	-- EMPTY_CLOB()
-	aObj := json_object();
+	aObj := jsonObject();
 	aObj.put('value', EMPTY_CLOB());
 	aObj.to_clob(theLobBuf=>aOutput);
 	clearLob(theLob=>aExpected);
@@ -141,7 +150,7 @@ BEGIN
 	UT_util.eqLOB(theTitle=>'1: EMPTY_CLOB()', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
 
 	-- empty CLOB
-	aObj := json_object();
+	aObj := jsonObject();
 	setLob(aValue, '');
 	aObj.put('value', aValue);
 	aObj.to_clob(theLobBuf=>aOutput);
@@ -150,7 +159,7 @@ BEGIN
 	UT_util.eqLOB(theTitle=>'2: NULL', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
 
 	-- #
-	aObj := json_object();
+	aObj := jsonObject();
 	setLob(aValue, '#');
 	aObj.put('value', aValue);
 	aObj.to_clob(theLobBuf=>aOutput);
@@ -159,8 +168,8 @@ BEGIN
 	UT_util.eqLOB(theTitle=>'3: #', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
 
 	-- special characters
-	aObj := json_object();
-	setLob(aValue, CHR(8)||CHR(9)||CHR(10)||CHR(13)||CHR(14)||CHR(34)||CHR(92));
+	aObj := jsonObject();
+	setLob(aValue, CHR(8)||CHR(9)||CHR(10)||CHR(12)||CHR(13)||CHR(34)||CHR(92));
 	aObj.put('value', aValue);
 	aObj.to_clob(theLobBuf=>aOutput);
 	clearLob(theLob=>aExpected);
@@ -168,7 +177,7 @@ BEGIN
 	UT_util.eqLOB(theTitle=>'4: \b\t\n\f\r\"\\', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
 
 	-- hex
-	aObj := json_object();
+	aObj := jsonObject();
 	clearLob(theLob=>aValue);
 	setLob(aValue, CHR(1)||CHR(2)||CHR(30)||CHR(31));
 	aObj.put('value', aValue);
@@ -177,17 +186,17 @@ BEGIN
 	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"\u0001\u0002\u001E\u001F"}'));
 	UT_util.eqLOB(theTitle=>'5: \u0001\u0002\u001E\u001F', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
 
-	-- ##########
-	aObj := json_object();
-	setLob(aValue, '##########');
+	-- ##########!!!!!!!!!!**********##########
+	aObj := jsonObject();
+	setLob(aValue, '##########!!!!!!!!!!**********##########');
 	aObj.put('value', aValue);
 	aObj.to_clob(theLobBuf=>aOutput);
 	clearLob(theLob=>aExpected);
-	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"##########"}'));
-	UT_util.eqLOB(theTitle=>'6: ##########', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
+	dbms_lob.append(dest_lob=>aExpected, src_lob=>TO_CLOB('{"value":"##########!!!!!!!!!!**********##########"}'));
+	UT_util.eqLOB(theTitle=>'6: ##########!!!!!!!!!!**********##########', theComputed=>aOutput, theExpected=>aExpected, theNullOK=>TRUE);
 
 	-- 32767 * 10 x #
-	aObj := json_object();
+	aObj := jsonObject();
 	fillLob(theLob=>aValue); -- 32767 * 2
 	aObj.put('value', aValue);
 	aObj.to_clob(theLobBuf=>aOutput);
@@ -208,10 +217,10 @@ END UT_LobValues;
 --
 PROCEDURE UT_Nodes
 IS
-	aObject1		json_object		:=	json_object();
-	aArray1			json_array		:=	json_array();
-	aObject2		json_object		:=	json_object();
-	aArray2			json_array		:=	json_array();
+	aObject1		jsonObject		:=	jsonObject();
+	aArray1			jsonArray		:=	jsonArray();
+	aObject2		jsonObject		:=	jsonObject();
+	aArray2			jsonArray		:=	jsonArray();
 	aLob			CLOB			:=	empty_clob();
 	aTitle			VARCHAR2(80);
 BEGIN
@@ -242,8 +251,8 @@ BEGIN
 	--
 	--	aObject2
 	--
-	aObject2.put('p1', aArray2.to_json_value());
-	aObject2.put('p2', aArray2.to_json_value());
+	aObject2.put('p1', aArray2.to_jsonValue());
+	aObject2.put('p2', aArray2.to_jsonValue());
 	json_utils.validate(aObject2.nodes);
 
 	aTitle := 'aObject2';
@@ -296,7 +305,7 @@ BEGIN
 	--
 	--	aObject1
 	--
-	aObject1.put('data', aArray1.to_json_value());
+	aObject1.put('data', aArray1.to_jsonValue());
 	json_utils.validate(aObject1.nodes);
 
 	aTitle := 'aObject1';
@@ -333,10 +342,10 @@ END UT_Nodes;
 --
 PROCEDURE UT_RemoveNode
 IS
-	aJsonObject		json_object				:=	json_object();
+	aJsonObject		jsonObject				:=	jsonObject();
 	aJsonString		CLOB					:=	empty_clob();
 
-	aObject			json_object				:=	json_object();
+	aObject			jsonObject				:=	jsonObject();
 	aLob			CLOB					:=	empty_clob();
 
 	aNodeID			BINARY_INTEGER;
@@ -378,7 +387,7 @@ BEGIN
 					);
 
 	aTitle := 'create complex object';
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1',	theValue=>'v1');
 	aObject.put(theName=>'p2',	theValue=>aJsonObject);
 	aObject.put(theName=>'p3',	theValue=>'v3');
@@ -467,7 +476,7 @@ BEGIN
 
 	-- remove nodes of property p1
 	aTitle := 'remove property p1#2';
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1',	theValue=>'v1');
 	aObject.put(theName=>'p2',	theValue=>aJsonObject);
 	aObject.put(theName=>'p3',	theValue=>'v3');
@@ -498,7 +507,7 @@ BEGIN
 
 	-- remove nodes of property p1
 	aTitle := 'remove property p2#2';
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1',	theValue=>'v1');
 	aObject.put(theName=>'p2',	theValue=>aJsonObject);
 	aObject.put(theName=>'p3',	theValue=>'v3');
@@ -525,14 +534,14 @@ END UT_RemoveNode;
 --
 PROCEDURE UT_getter
 IS
-	aObject						json_object	:=	json_object();
-	aSubObject					json_object	:=	json_object();
-	aArray						json_array	:=	json_array();
-	aSubArray					json_array	:=	json_array();
+	aObject						jsonObject	:=	jsonObject();
+	aSubObject					jsonObject	:=	jsonObject();
+	aArray						jsonArray	:=	jsonArray();
+	aSubArray					jsonArray	:=	jsonArray();
 
 	CURRENT_DATE	CONSTANT	DATE		:=	SYSDATE;
 
-	PROCEDURE testString(theDate IN json_value, theTitle IN VARCHAR2, theValue IN VARCHAR2)
+	PROCEDURE testString(theDate IN jsonValue, theTitle IN VARCHAR2, theValue IN VARCHAR2)
 	IS
 	BEGIN
 		UT_util.eq(theTitle=>theTitle||'(get_type)',	theExpected=>'STRING',	theComputed=>theDate.get_type(),	theNullOK=>FALSE);
@@ -545,10 +554,10 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(get_string)',	theExpected=>theValue,	theComputed=>theDate.get_string(),	theNullOK=>TRUE);
 		UT_util.eq(theTitle=>theTitle||'(COUNT)',		theExpected=>1,			theComputed=>theDate.nodes.COUNT,	theNullOK=>FALSE);
-		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'S',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(jsonNode)',	theExpected=>'S',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
 	END testString;
 
-	PROCEDURE testNumber(theDate IN json_value, theTitle IN VARCHAR2, theValue IN NUMBER)
+	PROCEDURE testNumber(theDate IN jsonValue, theTitle IN VARCHAR2, theValue IN NUMBER)
 	IS
 	BEGIN
 		UT_util.eq(theTitle=>theTitle||'(get_type)',	theExpected=>'NUMBER',	theComputed=>theDate.get_type(),	theNullOK=>FALSE);
@@ -561,10 +570,10 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(get_number)',	theExpected=>theValue,	theComputed=>theDate.get_number(),	theNullOK=>TRUE);
 		UT_util.eq(theTitle=>theTitle||'(COUNT)',		theExpected=>1,			theComputed=>theDate.nodes.COUNT,	theNullOK=>FALSE);
-		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'N',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(jsonNode)',	theExpected=>'N',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
 	END testNumber;
 
-	PROCEDURE testDate(theDate IN json_value, theTitle IN VARCHAR2, theValue IN DATE)
+	PROCEDURE testDate(theDate IN jsonValue, theTitle IN VARCHAR2, theValue IN DATE)
 	IS
 	BEGIN
 		UT_util.eq(theTitle=>theTitle||'(get_type)',	theExpected=>'DATE',	theComputed=>theDate.get_type(),	theNullOK=>FALSE);
@@ -577,10 +586,10 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(get_date)',	theExpected=>theValue,	theComputed=>theDate.get_date(),	theNullOK=>TRUE);
 		UT_util.eq(theTitle=>theTitle||'(COUNT)',		theExpected=>1,			theComputed=>theDate.nodes.COUNT,	theNullOK=>FALSE);
-		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'D',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(jsonNode)',	theExpected=>'D',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
 	END testDate;
 
-	PROCEDURE testBool(theDate IN json_value, theTitle IN VARCHAR2, theValue IN BOOLEAN)
+	PROCEDURE testBool(theDate IN jsonValue, theTitle IN VARCHAR2, theValue IN BOOLEAN)
 	IS
 	BEGIN
 		UT_util.eq(theTitle=>theTitle||'(get_type)',	theExpected=>'BOOLEAN',	theComputed=>theDate.get_type(),	theNullOK=>FALSE);
@@ -593,10 +602,10 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(get_bool)',	theExpected=>theValue,	theComputed=>theDate.get_bool(),	theNullOK=>TRUE);
 		UT_util.eq(theTitle=>theTitle||'(COUNT)',		theExpected=>1,			theComputed=>theDate.nodes.COUNT,	theNullOK=>FALSE);
-		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'B',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(jsonNode)',	theExpected=>'B',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
 	END testBool;
 
-	PROCEDURE testNull(theDate IN json_value, theTitle IN VARCHAR2)
+	PROCEDURE testNull(theDate IN jsonValue, theTitle IN VARCHAR2)
 	IS
 	BEGIN
 		UT_util.eq(theTitle=>theTitle||'(get_type)',	theExpected=>'NULL',	theComputed=>theDate.get_type(),	theNullOK=>FALSE);
@@ -608,10 +617,10 @@ IS
 		UT_util.eq(theTitle=>theTitle||'(is_object)',	theExpected=>FALSE,		theComputed=>theDate.is_object(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(is_array)',	theExpected=>FALSE,		theComputed=>theDate.is_array(),	theNullOK=>FALSE);
 		UT_util.eq(theTitle=>theTitle||'(COUNT)',		theExpected=>1,			theComputed=>theDate.nodes.COUNT,	theNullOK=>FALSE);
-		UT_util.eq(theTitle=>theTitle||'(json_node)',	theExpected=>'0',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
+		UT_util.eq(theTitle=>theTitle||'(jsonNode)',	theExpected=>'0',		theComputed=>theDate.nodes(1).typ,	theNullOK=>FALSE);
 	END testNull;
 
-	PROCEDURE testType(theDate IN json_value, theTitle IN VARCHAR2, theType IN VARCHAR2)
+	PROCEDURE testType(theDate IN jsonValue, theTitle IN VARCHAR2, theType IN VARCHAR2)
 	IS
 		isObject	BOOLEAN	:=	(theType = 'OBJECT');
 		isArray		BOOLEAN	:=	(theType = 'ARRAY');
@@ -679,8 +688,8 @@ BEGIN
 	UT_util.module('UT_getter(nested objects)');
 
 	--	sub object
-	aObject		:= json_object();
-	aSubObject	:= json_object();
+	aObject		:= jsonObject();
+	aSubObject	:= jsonObject();
 	aSubObject.put('sp1', 'string');
 	aSubObject.put('sp2', -0.4711);
 	aObject.put('p1', 's');
@@ -697,6 +706,36 @@ BEGIN
 	testType(	aObject.get('p2'),	'p2',		'OBJECT');
 	testNumber(	aObject.get('p3'),	'p3',		0);
 	testType(	aObject.get('p4'),	'p4',		'OBJECT');
+
+	UT_util.module('UT_getter(nested array)');
+
+	--	sub array
+	aObject		:= jsonObject();
+	aArray		:= jsonArray();
+	aArray.append();
+	aArray.append('string');
+	aArray.append('');
+	aArray.append(-0.4711);
+	aArray.append(0);
+	aArray.append(CURRENT_DATE);
+	aArray.append(TRUE);
+	aArray.append(FALSE);
+	aObject.put('p1', aArray.to_jsonValue());
+
+	--	validate
+	json_utils.validate(aArray.nodes);
+	json_utils.validate(aObject.nodes);
+
+	--	test
+	aArray := jsonArray(aObject.get('p1'));
+	testNull(	aArray.get(1),	'1');
+	testString(	aArray.get(2),	'2',	'string');
+	testString(	aArray.get(3),	'3',	'');
+	testNumber(	aArray.get(4),	'4',	-0.4711);
+	testNumber(	aArray.get(5),	'5',	0);
+	testDate(	aArray.get(6),	'6',	CURRENT_DATE);
+	testBool(	aArray.get(7),	'7',	TRUE);
+	testBool(	aArray.get(8),	'8',	FALSE);
 END UT_getter;
 
 ----------------------------------------------------------
@@ -704,9 +743,9 @@ END UT_getter;
 --
 PROCEDURE UT_Object
 IS
-	aObject			json_object	:=	json_object();
-	aObject2		json_object	:=	json_object();
-	aArray			json_array	:=	json_array();
+	aObject			jsonObject	:=	jsonObject();
+	aObject2		jsonObject	:=	jsonObject();
+	aArray			jsonArray	:=	jsonArray();
 	aNumber			NUMBER;
 	aDate			DATE;
 	aBoolean		BOOLEAN;
@@ -727,7 +766,7 @@ BEGIN
 					);
 
 	--	put constants to an object
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1');
 	aObject.put(theName=>'p2',	theValue=>'string');
 	aObject.put(theName=>'p3',	theValue=>'');
@@ -748,7 +787,7 @@ BEGIN
 					);
 
 	-- put variables to an object
-	aObject := json_object();
+	aObject := jsonObject();
 	aNumber := NULL;
 	aDate := NULL;
 	aBoolean := NULL;
@@ -781,9 +820,9 @@ BEGIN
 					);
 
 	-- put objects to an object
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1', theValue=>'v1');
-	aObject2 := json_object();
+	aObject2 := jsonObject();
 	aObject2.put('p2', aObject);
 	json_utils.validate(aObject.nodes);
 	aObject2.to_clob(theLobBuf=>aLob);
@@ -793,14 +832,14 @@ BEGIN
 					theNullOK	=>	FALSE
 					);
 
-	-- put objects to an object (using to_json_value)
-	aObject := json_object();
+	-- put objects to an object (using to_jsonValue)
+	aObject := jsonObject();
 	aObject.put(theName=>'p1', theValue=>'v1');
-	aObject2 := json_object();
-	aObject2.put('p2', aObject.to_json_value());
+	aObject2 := jsonObject();
+	aObject2.put('p2', aObject.to_jsonValue());
 	json_utils.validate(aObject.nodes);
 	aObject2.to_clob(theLobBuf=>aLob);
-	UT_util.eqLOB(	theTitle	=>	'objects(to_json_value)',
+	UT_util.eqLOB(	theTitle	=>	'objects(to_jsonValue)',
 					theComputed	=>	aLob,
 					theExpected	=>	'{"p2":{"p1":"v1"}}',
 					theNullOK	=>	FALSE
@@ -809,9 +848,9 @@ BEGIN
 	-- put arrays to an object
 	aArray.append();
 	aArray.append(1);
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1', theValue=>'v1');
-	aObject.put(theName=>'p2', theValue=>aArray.to_json_value());
+	aObject.put(theName=>'p2', theValue=>aArray.to_jsonValue());
 	json_utils.validate(aObject.nodes);
 	aObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'arrays',
@@ -829,10 +868,10 @@ END UT_Object;
 --
 PROCEDURE UT_Duplicates
 IS
-	aJsonObject		json_object				:=	json_object();
+	aJsonObject		jsonObject				:=	jsonObject();
 	aJsonString		CLOB					:=	empty_clob();
-	aObject			json_object				:=	json_object();
-	aArray			json_array				:=	json_array();
+	aObject			jsonObject				:=	jsonObject();
+	aArray			jsonArray				:=	jsonArray();
 	aNumber			NUMBER;
 	aDate			DATE;
 	aBoolean		BOOLEAN;
@@ -868,7 +907,7 @@ BEGIN
 	aArray.append(3);
 
 	aTitle := 'duplicates#1';
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1',	theValue=>'v1');
 	aObject.put(theName=>'p2',	theValue=>'v2');
 	aObject.put(theName=>'p3',	theValue=>'v3');
@@ -915,10 +954,10 @@ BEGIN
 					);
 
 	aTitle := 'duplicates#4';
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1',	theValue=>'v1');
 	aObject.put(theName=>'p2',	theValue=>'v2');
-	aObject.put(theName=>'p2',	theValue=>aArray.to_json_value());
+	aObject.put(theName=>'p2',	theValue=>aArray.to_jsonValue());
 	aObject.put(theName=>'p3',	theValue=>'v3');
 	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>6, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
 	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>6, theComputed=>aObject.lastID, theNullOK=>TRUE);
@@ -936,7 +975,7 @@ BEGIN
 					);
 
 	aTitle := 'duplicates#5';
-	aObject.put(theName=>'p3',	theValue=>aArray.to_json_value());
+	aObject.put(theName=>'p3',	theValue=>aArray.to_jsonValue());
 	UT_util.eq(theTitle=>aTitle||': COUNT', theExpected=>9, theComputed=>aObject.nodes.COUNT, theNullOK=>TRUE);
 	UT_util.eq(theTitle=>aTitle||': lastID', theExpected=>6, theComputed=>aObject.lastID, theNullOK=>TRUE);
 	checkNode(				theTitle=>aTitle,	theNodes=>aObject.nodes, theNodeID=>1,		theType=>'S', theSub=>NULL,	theParent=>NULL,	theNext=>2,			theName=>'p1',		theString=>'v1');
@@ -1010,7 +1049,7 @@ BEGIN
 					);
 
 	aTitle := 'duplicates#9';
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p1',	theValue=>'v1');
 	aObject.put(theName=>'p2',	theValue=>aJsonObject);
 	aObject.put(theName=>'p3',	theValue=>'v3');
@@ -1050,7 +1089,7 @@ BEGIN
 					);
 
 	-- repeat put
-	aObject := json_object();
+	aObject := jsonObject();
 	aObject.put(theName=>'p', theValue=>0);
 	i := 0;
 	WHILE (i < 1000) LOOP
@@ -1088,9 +1127,9 @@ END UT_Duplicates;
 --
 PROCEDURE UT_Array
 IS
-	aObject			json_object	:=	json_object();
-	aArray			json_array	:=	json_array();
-	aArray2			json_array	:=	json_array();
+	aObject			jsonObject	:=	jsonObject();
+	aArray			jsonArray	:=	jsonArray();
+	aArray2			jsonArray	:=	jsonArray();
 
 	aLob			CLOB		:=	empty_clob();
 
@@ -1129,7 +1168,7 @@ BEGIN
 	--	array of objects
 	aObject.put('id', 10);
 	aObject.put('name', 'Jon Doe');
-	aArray := json_array();
+	aArray := jsonArray();
 	aArray.append(aObject);
 	json_utils.validate(aArray.nodes);
 	aArray.to_clob(theLobBuf=>aLob);
@@ -1140,10 +1179,10 @@ BEGIN
 					);
 
 	--	array of arrays
-	aArray := json_array();
+	aArray := jsonArray();
 	aArray.append(0);
 	aArray.append('0');
-	aArray2 := json_array();
+	aArray2 := jsonArray();
 	aArray2.append(aArray);
 	aArray2.append(aArray);
 	json_utils.validate(aArray2.nodes);
@@ -1163,16 +1202,16 @@ END UT_Array;
 --
 PROCEDURE UT_DeepRecursion
 IS
-	aObject0		json_object	:=	json_object();
-	aObject1		json_object	:=	json_object();
-	aObject2		json_object	:=	json_object();
-	aObject3		json_object	:=	json_object();
-	aObject4		json_object	:=	json_object();
-	aObject5		json_object	:=	json_object();
-	aObject6		json_object	:=	json_object();
-	aObject7		json_object	:=	json_object();
-	aObject8		json_object	:=	json_object();
-	aObject9		json_object	:=	json_object();
+	aObject0		jsonObject	:=	jsonObject();
+	aObject1		jsonObject	:=	jsonObject();
+	aObject2		jsonObject	:=	jsonObject();
+	aObject3		jsonObject	:=	jsonObject();
+	aObject4		jsonObject	:=	jsonObject();
+	aObject5		jsonObject	:=	jsonObject();
+	aObject6		jsonObject	:=	jsonObject();
+	aObject7		jsonObject	:=	jsonObject();
+	aObject8		jsonObject	:=	jsonObject();
+	aObject9		jsonObject	:=	jsonObject();
 
 	aLob			CLOB		:=	empty_clob();
 BEGIN
@@ -1209,11 +1248,11 @@ END UT_DeepRecursion;
 --
 PROCEDURE UT_ComplexObject
 IS
-	aNameObject		json_object	:=	json_object();
-	aEmailArray		json_array	:=	json_array();
-	aPersonObject	json_object	:=	json_object();
-	aNull			json_object	:=	json_object();
-	aPersonArray	json_array	:=	json_array();
+	aNameObject		jsonObject	:=	jsonObject();
+	aEmailArray		jsonArray	:=	jsonArray();
+	aPersonObject	jsonObject	:=	jsonObject();
+	aNull			jsonObject	:=	jsonObject();
+	aPersonArray	jsonArray	:=	jsonArray();
 
 	aLob			CLOB		:=	empty_clob();
 BEGIN
@@ -1234,7 +1273,7 @@ BEGIN
 					);
 
 	--	create aEmailArray
-	aEmailArray := json_array();
+	aEmailArray := jsonArray();
 	aEmailArray.append('jon.doe@gmail.com');
 	aEmailArray.append('j.doe@gmail.com');
 	aEmailArray.to_clob(theLobBuf=>aLob);
@@ -1247,11 +1286,11 @@ BEGIN
 	--	prepare array
 	aPersonArray.append(aNull);
 	FOR i IN 1 .. 3 LOOP
-		aPersonObject	:= json_object();
+		aPersonObject	:= jsonObject();
 		aPersonObject.put('id', i);
 		aPersonObject.put('name', aNameObject);
 		aPersonObject.put('male', TRUE);
-		aPersonObject.put('email', aEmailArray.to_json_value());
+		aPersonObject.put('email', aEmailArray.to_jsonValue());
 
 		aPersonArray.append();
 		aPersonArray.append(i);
@@ -1280,7 +1319,7 @@ END UT_ComplexObject;
 --
 PROCEDURE UT_BigObject
 IS
-	aArray			json_array	:=	json_array();
+	aArray			jsonArray	:=	jsonArray();
 
 	aString			VARCHAR2(32767);
 	aResult			CLOB				:=	empty_clob();
@@ -1329,7 +1368,7 @@ IS
 	TYPE TestValueList IS TABLE OF TestValueType INDEX BY BINARY_INTEGER;
 
 	aList		TestValueList;
-	aObject		json_object			:=	json_object();
+	aObject		jsonObject			:=	jsonObject();
 	aLob		CLOB				:=	empty_clob();
 	i			BINARY_INTEGER;
 
@@ -1361,7 +1400,7 @@ BEGIN
 
 	FOR i IN 1 .. aList.COUNT LOOP
 		-- parse the json string
-		aObject := json_object(aList(i).v);
+		aObject := jsonObject(aList(i).v);
 		
 		-- validate the resulting object
 		json_utils.validate(aObject.nodes);
@@ -1401,16 +1440,16 @@ IS
     ]
 }';
 
-	aObject					json_object			:=	json_object();
+	aObject					jsonObject			:=	jsonObject();
 
 	aResult					CLOB				:=	empty_clob();
 	aParsed					CLOB				:=	empty_clob();
 
-	FUNCTION createObject RETURN json_object
+	FUNCTION createObject RETURN jsonObject
 	IS
-		aPerson	json_object	:=	json_object();
-		aName	json_object	:=	json_object();
-		aEmails	json_array	:=	json_array();
+		aPerson	jsonObject	:=	jsonObject();
+		aName	jsonObject	:=	jsonObject();
+		aEmails	jsonArray	:=	jsonArray();
 	BEGIN
 		aName.put('first', 'Jon');
 		aName.put('middle', '');
@@ -1421,7 +1460,7 @@ IS
 		aPerson.put('name', aName);
 		aPerson.put('age', 40);
 		aPerson.put('active', TRUE);
-		aPerson.put('email', aEmails.to_json_value());
+		aPerson.put('email', aEmails.to_jsonValue());
 		RETURN aPerson;
 	END createObject;
 BEGIN
@@ -1437,7 +1476,7 @@ BEGIN
 	aObject.to_clob(theLobBuf=>aResult);
 
 	--	parse
-	aObject := json_object(JSONSource);
+	aObject := jsonObject(JSONSource);
 	json_utils.validate(aObject.nodes);
 
 	--	serialize again
@@ -1458,10 +1497,10 @@ END UT_ParseSimple;
 --
 PROCEDURE UT_ParseComplex
 IS
-	aJsonObject		json_object				:=	json_object();
+	aJsonObject		jsonObject				:=	jsonObject();
 	aJsonString		CLOB					:=	empty_clob();
 
-	aObject			json_object				:=	json_object();
+	aObject			jsonObject				:=	jsonObject();
 	aLob			CLOB					:=	empty_clob();
 
 	aTitle			VARCHAR2(32767)			:=	'parsed nodes';
@@ -1477,10 +1516,10 @@ BEGIN
 
 	-- convert json object to string
 	aJsonObject.to_clob(theLobBuf=>aLob);
-	aJsonObject := json_object();
+	aJsonObject := jsonObject();
 
 	-- parse json string
-	aObject := json_object(aLob);
+	aObject := jsonObject(aLob);
 	json_utils.validate(aObject.nodes);
 
 	-- validate nodes in parse object
@@ -1547,11 +1586,11 @@ IS
     ]
 }';
 
-	aMainObject				json_object			:=	json_object();
-	aDataArray				json_array			:=	json_array();
-	aDataObject				json_object			:=	json_object();
-	aMetaObject				json_object			:=	json_object();
-	aMetaKeys				json_keys;
+	aMainObject				jsonObject			:=	jsonObject();
+	aDataArray				jsonArray			:=	jsonArray();
+	aDataObject				jsonObject			:=	jsonObject();
+	aMetaObject				jsonObject			:=	jsonObject();
+	aMetaKeys				jsonKeys;
 
 	aLob					CLOB				:=	empty_clob();
 
@@ -1566,7 +1605,7 @@ BEGIN
 	dbms_lob.createtemporary(aLob, TRUE);
 
 	--	parse
-	aMainObject := json_object(JSONSource);
+	aMainObject := jsonObject(JSONSource);
 	json_utils.validate(aMainObject.nodes);
 	aMainObject.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'aMainObject',
@@ -1585,7 +1624,7 @@ BEGIN
 				theNullOK	=>	FALSE
 				);
 
-	aDataArray := json_array(aMainObject.get('data'));
+	aDataArray := jsonArray(aMainObject.get('data'));
 	json_utils.validate(aDataArray.nodes);
 	aDataArray.to_clob(theLobBuf=>aLob);
 	UT_util.eqLOB(	theTitle	=>	'aDataArray',
@@ -1595,7 +1634,7 @@ BEGIN
 					);
 
 	FOR i IN 1 .. aDataArray.COUNT LOOP
-		aDataObject := json_object(aDataArray.get(i));
+		aDataObject := jsonObject(aDataArray.get(i));
 		json_utils.validate(aDataObject.nodes);
 		aDataObject.to_clob(theLobBuf=>aLob);
 
@@ -1612,7 +1651,7 @@ BEGIN
 					theNullOK	=>	TRUE
 					);
 
-		aMetaObject := json_object(aDataObject.get('metadata'));
+		aMetaObject := jsonObject(aDataObject.get('metadata'));
 		json_utils.validate(aMetaObject.nodes);
 		aMetaObject.to_clob(theLobBuf=>aLob);
 		aMetaKeys := aMetaObject.get_keys();
@@ -1657,7 +1696,7 @@ END UT_ParseAndDestruct;
 --
 PROCEDURE UT_Debug
 IS
-	aObject			json_object	:=	json_object();
+	aObject			jsonObject	:=	jsonObject();
 
 	aLob			CLOB		:=	empty_clob();
 BEGIN
@@ -1680,33 +1719,9 @@ BEGIN
 END UT_Debug;
 
 ----------------------------------------------------------
---	getJSON
---
-PROCEDURE getJSON(theCount IN NUMBER)
-IS
-	aObject			json_object	:=	json_object();
-	aArray			json_array	:=	json_array();
-BEGIN
-	UT_util.module('getJSON');
-
-	--	create subobject
-	aObject.put('string', 'this is a string value');
-	aObject.put('number', 47.11);
-	aObject.put('boolean', TRUE);
-
-	--	create object
-	FOR i IN 1 .. theCount LOOP
-		aArray.append(aObject);
-	END LOOP;
-
-	--	output array
-	aArray.htp();
-END getJSON;
-
-----------------------------------------------------------
 --	checkNode (private) 
 --
-PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN json_nodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL)
+PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN jsonNodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL)
 IS
 	aTitle	VARCHAR2(32767) := '#'||theNodeID;
 BEGIN
@@ -1729,30 +1744,30 @@ END checkNode;
 ----------------------------------------------------------
 --	getComplexObject (private)
 --
-PROCEDURE getComplexObject(theJsonObject IN OUT NOCOPY json_object, theJsonString IN OUT NOCOPY CLOB)
+PROCEDURE getComplexObject(theJsonObject IN OUT NOCOPY jsonObject, theJsonString IN OUT NOCOPY CLOB)
 IS
-	aObj	json_object	:=	json_object();
-	aArr	json_array	:=	json_array();
+	aObj	jsonObject	:=	jsonObject();
+	aArr	jsonArray	:=	jsonArray();
 BEGIN
 	-- clean
-	theJsonObject := json_object();
+	theJsonObject := jsonObject();
 
 	-- create object
 	theJsonObject.put('fname', 'john');
 	theJsonObject.put('mname');
 	theJsonObject.put('lname', 'doe');
-	aArr := json_array();
+	aArr := jsonArray();
 	aArr.append('j.doe@gmail.com');
 	aArr.append('john.doe@gmail.com');
-	theJsonObject.put('email', aArr.to_json_value());
-	aArr := json_array();
+	theJsonObject.put('email', aArr.to_jsonValue());
+	aArr := jsonArray();
 	aArr.append('n. russmore av.');
-	aObj := json_object();
-	aObj.put('street', aArr.to_json_value());
+	aObj := jsonObject();
+	aObj.put('street', aArr.to_jsonValue());
 	aObj.put('city', 'los angeles');
 	aObj.put('state', 'ca');
 	aObj.put('zip', '90004');
-	theJsonObject.put('address', aObj.to_json_value());
+	theJsonObject.put('address', aObj.to_jsonValue());
 
 	-- convert to string
 	theJsonObject.to_clob(theLobBuf=>theJsonString);
