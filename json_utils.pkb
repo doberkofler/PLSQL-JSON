@@ -2,10 +2,55 @@ CREATE OR REPLACE
 PACKAGE BODY json_utils
 IS
 
+outputOptions OutputOptionsType;
+
+NEW_LINE CONSTANT VARCHAR2(2) := '
+';
+INDENTATION_CHARACTER CONSTANT VARCHAR2(1) := '	';
+
 PROCEDURE copySubNodes(theTarget IN OUT NOCOPY jsonNodes, theFirstID IN OUT NOCOPY BINARY_INTEGER, theParentID IN BINARY_INTEGER, theSource IN jsonNodes, theFirstSourceID IN BINARY_INTEGER);
 FUNCTION boolean_to_json(theBoolean IN NUMBER) RETURN VARCHAR2;
 FUNCTION number_to_json(theNumber IN NUMBER) RETURN VARCHAR2;
+FUNCTION get_gap(theIndentation IN INTEGER) RETURN VARCHAR2;
 PROCEDURE escapeLOB(theInputLob IN CLOB, theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theAsciiOutput IN BOOLEAN DEFAULT TRUE, theEscapeSolitus IN BOOLEAN DEFAULT FALSE);
+
+----------------------------------------------------------
+--	get_default_options
+--
+FUNCTION get_default_options RETURN outputOptionsType
+IS
+	aOptions outputOptionsType;
+BEGIN
+	RETURN aOptions;
+END get_default_options;
+
+----------------------------------------------------------
+--	get_options
+--
+FUNCTION get_options RETURN outputOptionsType
+IS
+BEGIN
+	RETURN outputOptions;
+END get_options;
+
+----------------------------------------------------------
+--	set_options
+--
+PROCEDURE set_options(theOptions IN outputOptionsType)
+IS
+BEGIN
+	outputOptions := theOptions;
+END set_options;
+
+----------------------------------------------------------
+--	get_default_output_options
+--
+FUNCTION get_default_output_options RETURN OutputOptionsType
+IS
+	aOptions OutputOptionsType;
+BEGIN
+	RETURN aOptions;
+END get_default_output_options;
 
 ----------------------------------------------------------
 --	add_string
@@ -483,17 +528,22 @@ END removeNode;
 ----------------------------------------------------------
 --	value_to_clob
 --
-PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER)
+PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theIndentation IN OUT INTEGER)
 IS
-	aNode	jsonNode			:=	theNodes(theNodeID);
+	PRAGMA INLINE (get_gap, 'YES');
+	GAP		CONSTANT	VARCHAR2(32767)		:=	get_gap(theIndentation);
 
-	aName	VARCHAR2(32767);
-	aCLOB	CLOB;
+	aNode				jsonNode			:=	theNodes(theNodeID);
+	aName				VARCHAR2(32767);
+	aCLOB				CLOB;
 BEGIN
 	--	Add the property name
 	IF (aNode.nam IS NOT NULL) THEN
 		PRAGMA INLINE (escape, 'YES');
-		aName := '"' || escape(aNode.nam) || '":';
+		aName := GAP || '"' || escape(theString=>aNode.nam, theAsciiOutput=>outputOptions.AsciiOutput, theEscapeSolitus=>outputOptions.EscapeSolitus) || '":';
+		IF (outputOptions.Pretty) THEN
+			aName := aName || ' ';
+		END IF;
 
 		PRAGMA INLINE (add_string, 'YES');
 		json_utils.add_string(theLobBuf, theStrBuf, aName);
@@ -504,36 +554,36 @@ BEGIN
 
 	WHEN json_utils.NODE_TYPE_NULL THEN
 		PRAGMA INLINE (add_string, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'null');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || 'null');
 
 	WHEN json_utils.NODE_TYPE_STRING THEN
 		PRAGMA INLINE (escape, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"' || escape(aNode.str) || '"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"' || escape(theString=>aNode.str, theAsciiOutput=>outputOptions.AsciiOutput, theEscapeSolitus=>outputOptions.EscapeSolitus) || '"');
 
 	WHEN json_utils.NODE_TYPE_LOB THEN
 		PRAGMA INLINE (add_string, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"');
 		PRAGMA INLINE (escapeLOB, 'YES');
-		escapeLOB(theInputLob=>aNode.lob, theLobBuf=>theLobBuf, theStrBuf=>theStrBuf);
+		escapeLOB(theInputLob=>aNode.lob, theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theAsciiOutput=>outputOptions.AsciiOutput, theEscapeSolitus=>outputOptions.EscapeSolitus);
 		PRAGMA INLINE (add_string, 'YES');
 		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
 
 	WHEN json_utils.NODE_TYPE_NUMBER THEN
 		PRAGMA INLINE (number_to_json, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>number_to_json(aNode.num));
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || number_to_json(aNode.num));
 
 	WHEN json_utils.NODE_TYPE_DATE THEN
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"');
 
 	WHEN json_utils.NODE_TYPE_BOOLEAN THEN
 		PRAGMA INLINE (boolean_to_json, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>boolean_to_json(aNode.num));
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || boolean_to_json(aNode.num));
 
 	WHEN json_utils.NODE_TYPE_OBJECT THEN
-		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
+		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theIndentation=>theIndentation, theFlushToLOB=>FALSE);
 
 	WHEN json_utils.NODE_TYPE_ARRAY THEN
-		json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theFlushToLOB=>FALSE);
+		json_utils.array_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theIndentation=>theIndentation, theFlushToLOB=>FALSE);
 
 	ELSE
 		raise_application_error(-20100, 'Invalid node type: '||aNode.typ, TRUE);
@@ -543,29 +593,58 @@ END value_to_clob;
 ----------------------------------------------------------
 --	object_to_clob
 --
-PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE)
+PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theIndentation IN OUT INTEGER, theFlushToLOB IN BOOLEAN DEFAULT TRUE)
 IS
-	i	BINARY_INTEGER	:=	theNodeID;
+	PRAGMA INLINE (get_gap, 'YES');
+	GAP		CONSTANT	VARCHAR2(32767)		:=	get_gap(theIndentation);
+
+	aBracket			VARCHAR2(32767);
+	aDelimiter			VARCHAR2(32767);
+	aNodeID				BINARY_INTEGER		:=	theNodeID;
 BEGIN
-	--	Serialize the object
+	-- open bracket {
+	IF (outputOptions.Pretty) THEN
+		aBracket := '{' || NEW_LINE;
+	ELSE
+		aBracket := '{';
+	END IF;
 	PRAGMA INLINE (add_string, 'YES');
-	json_utils.add_string(theLobBuf, theStrBuf, '{');
-	WHILE (i IS NOT NULL) LOOP
+	json_utils.add_string(theLobBuf, theStrBuf, aBracket);
+	
+	-- compute the delimiter
+	IF (outputOptions.Pretty) THEN
+		aDelimiter := ',' || NEW_LINE;
+	ELSE
+		aDelimiter := ',';
+	END IF;
+
+	-- process all properties in the object
+	WHILE (aNodeID IS NOT NULL) LOOP
 		--	Add separator from last property if we are not the first one
-		IF (i != theNodeID) THEN
+		IF (aNodeID != theNodeID) THEN
 			PRAGMA INLINE (add_string, 'YES');
-			json_utils.add_string(theLobBuf, theStrBuf, ',');
+			json_utils.add_string(theLobBuf, theStrBuf, aDelimiter);
 		END IF;
 
 		--	Add the property pair
+		theIndentation := theIndentation + 1;
 		--PRAGMA INLINE (value_to_clob, 'YES');
-		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
+		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>aNodeID, theIndentation=>theIndentation);
+		theIndentation := theIndentation -+ 1;
 
-		i := theNodes(i).nex;
+		aNodeID := theNodes(aNodeID).nex;
 	END LOOP;
-	PRAGMA INLINE (add_string, 'YES');
-	json_utils.add_string(theLobBuf, theStrBuf, '}');
 
+	-- close bracket }
+	IF (outputOptions.Pretty) THEN
+		aBracket := NEW_LINE || GAP || '}';
+	ELSE
+		aBracket := GAP || '}';
+	END IF;
+	PRAGMA INLINE (add_string, 'YES');
+	json_utils.add_string(theLobBuf, theStrBuf, aBracket);
+
+	-- flush
 	IF (theFlushToLOB) THEN
 		json_utils.flush_clob(theLobBuf, theStrBuf);
 	END IF;
@@ -574,29 +653,58 @@ END object_to_clob;
 ----------------------------------------------------------
 --	array_to_clob
 --
-PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE)
+PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theIndentation IN OUT INTEGER, theFlushToLOB IN BOOLEAN DEFAULT TRUE)
 IS
-	i	BINARY_INTEGER	:=	theNodeID;
+	PRAGMA INLINE (get_gap, 'YES');
+	GAP		CONSTANT	VARCHAR2(32767)		:=	get_gap(theIndentation);
+
+	aBracket			VARCHAR2(32767);
+	aDelimiter			VARCHAR2(32767);
+	aNodeID				BINARY_INTEGER		:=	theNodeID;
 BEGIN
-	--	Serialize the object
+	-- open bracket {
+	IF (outputOptions.Pretty) THEN
+		aBracket := '[' || NEW_LINE;
+	ELSE
+		aBracket := '[';
+	END IF;
 	PRAGMA INLINE (add_string, 'YES');
-	json_utils.add_string(theLobBuf, theStrBuf, '[');
-	WHILE (i IS NOT NULL) LOOP
+	json_utils.add_string(theLobBuf, theStrBuf, aBracket);
+
+	-- compute the delimiter
+	IF (outputOptions.Pretty) THEN
+		aDelimiter := ',' || NEW_LINE;
+	ELSE
+		aDelimiter := ',';
+	END IF;
+
+	-- process all properties in the object
+	WHILE (aNodeID IS NOT NULL) LOOP
 		--	Add separator from last array entry if we are not the first one
-		IF (i != theNodeID) THEN
+		IF (aNodeID != theNodeID) THEN
 			PRAGMA INLINE (add_string, 'YES');
-			json_utils.add_string(theLobBuf, theStrBuf, ',');
+			json_utils.add_string(theLobBuf, theStrBuf, aDelimiter);
 		END IF;
 
 		--	Add the property pair
+		theIndentation := theIndentation + 1;
 		PRAGMA INLINE (value_to_clob, 'YES');
-		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>i);
+		json_utils.value_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>aNodeID, theIndentation=>theIndentation);
+		theIndentation := theIndentation - 1;
 
-		i := theNodes(i).nex;
+		aNodeID := theNodes(aNodeID).nex;
 	END LOOP;
-	PRAGMA INLINE (add_string, 'YES');
-	json_utils.add_string(theLobBuf, theStrBuf, ']');
 
+	-- close bracket }
+	IF (outputOptions.Pretty) THEN
+		aBracket := NEW_LINE || GAP || ']';
+	ELSE
+		aBracket := GAP || ']';
+	END IF;
+	PRAGMA INLINE (add_string, 'YES');
+	json_utils.add_string(theLobBuf, theStrBuf, aBracket);
+
+	-- flush
 	IF (theFlushToLOB) THEN
 		json_utils.flush_clob(theLobBuf, theStrBuf);
 	END IF;
@@ -661,6 +769,19 @@ BEGIN
 		htp.prn(')');
 	END IF;
 END htp_output_close;
+
+----------------------------------------------------------
+--	get_gap (private)
+--
+FUNCTION get_gap(theIndentation IN INTEGER) RETURN VARCHAR2
+IS
+BEGIN
+	IF (outputOptions.Pretty) THEN
+		RETURN RPAD(INDENTATION_CHARACTER, theIndentation, INDENTATION_CHARACTER);
+	ELSE
+		RETURN '';
+	END IF;
+END get_gap;
 
 ----------------------------------------------------------
 --	copySubNodes (private)
@@ -817,11 +938,11 @@ BEGIN
 		END IF;
 
 		CASE buf
-		WHEN CHR( 8) THEN buf := '\b';	--	backspace b = U+0008
-		WHEN CHR( 9) THEN buf := '\t';	--	tabulator t = U+0009
-		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A
-		WHEN CHR(13) THEN buf := '\f';	--	formfeed  f = U+000C
-		WHEN CHR(14) THEN buf := '\r';	--	carret    r = U+000D
+		WHEN CHR(8)  THEN buf := '\b';	--	backspace b = U+0008 = chr(8)
+		WHEN CHR(9)  THEN buf := '\t';	--	tabulator t = U+0009 = chr(9)
+		WHEN CHR(10) THEN buf := '\n';	--	newline   n = U+000A = chr(10)
+		WHEN CHR(12) THEN buf := '\f';	--	formfeed  f = U+000C = chr(12)
+		WHEN CHR(13) THEN buf := '\r';	--	carret    r = U+000D = chr(13)
 		WHEN CHR(34) THEN buf := '\"';
 		WHEN CHR(47) THEN				--	slash
 			IF (theEscapeSolitus) THEN

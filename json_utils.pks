@@ -2,6 +2,15 @@ CREATE OR REPLACE
 PACKAGE json_utils
 IS
 
+-- output options
+TYPE outputOptionsType IS RECORD
+(
+	Pretty			BOOLEAN	DEFAULT FALSE,
+	AsciiOutput		BOOLEAN	DEFAULT TRUE,
+	EscapeSolitus	BOOLEAN	DEFAULT FALSE
+);
+
+-- node types
 NODE_TYPE_NULL			CONSTANT	VARCHAR2(1)	:= '0';
 NODE_TYPE_STRING		CONSTANT	VARCHAR2(1)	:= 'S';
 NODE_TYPE_LOB			CONSTANT	VARCHAR2(1)	:= 'L';
@@ -10,6 +19,21 @@ NODE_TYPE_DATE			CONSTANT	VARCHAR2(1)	:= 'D';
 NODE_TYPE_BOOLEAN		CONSTANT	VARCHAR2(1)	:= 'B';
 NODE_TYPE_OBJECT		CONSTANT	VARCHAR2(1)	:= 'O';
 NODE_TYPE_ARRAY			CONSTANT	VARCHAR2(1)	:= 'A';
+
+----------------------------------------------------------
+--	get_default_options
+--
+FUNCTION get_default_options RETURN outputOptionsType;
+
+----------------------------------------------------------
+--	get_options
+--
+FUNCTION get_options RETURN outputOptionsType;
+
+----------------------------------------------------------
+--	set_options
+--
+PROCEDURE set_options(theOptions IN outputOptionsType);
 
 ----------------------------------------------------------
 --	add_string
@@ -81,17 +105,17 @@ FUNCTION removeNode(theNodes IN OUT NOCOPY jsonNodes, theNodeID IN BINARY_INTEGE
 ----------------------------------------------------------
 --	convert a node value to a JSON string
 --
-PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER);
+PROCEDURE value_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theIndentation IN OUT INTEGER);
 
 ----------------------------------------------------------
 --	convert an object to a JSON string
 --
-PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
+PROCEDURE object_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theIndentation IN OUT INTEGER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
 
 ----------------------------------------------------------
 --	convert an array to a JSON string
 --
-PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
+PROCEDURE array_to_clob(theLobBuf IN OUT NOCOPY CLOB, theStrBuf IN OUT NOCOPY VARCHAR2, theNodes IN jsonNodes, theNodeID IN NUMBER, theIndentation IN OUT INTEGER, theFlushToLOB IN BOOLEAN DEFAULT TRUE);
 
 ----------------------------------------------------------
 --	copy output to the browser using htp.prn

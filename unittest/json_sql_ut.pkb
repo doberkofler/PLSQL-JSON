@@ -1,8 +1,6 @@
 CREATE OR REPLACE
 PACKAGE BODY json_sql_UT IS
 
---	$Id: json_sql_ut.pkb 51368 2017-06-19 13:02:35Z doberkofler $
-
 ----------------------------------------------------------
 --	PRIVATE TYPES
 ----------------------------------------------------------

@@ -13,17 +13,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 
+## [0.6.0] - 2020-03-09
+
+### Changed
+- Added api `get_default_options`, `get_options` and `set_options` to `json_utils`package to configure (`Pretty`, `AsciiOutput` and `EscapeSolitus`) the output.
+- Added support for formatted (pretty) json output with the option `Pretty`.
+
+
+### Fixed
+- Fixed another error when converting `\f` and `\r`.
+
+
 ## [0.5.0] - 2020-03-08
 
 ### Changed
 - No longer install debug module by default.
-- Removed package json_cost and json_clob.
+- Removed package `json_cost` and `json_clob`.
 - Removed the obsolete performance tests.
 
 
 ### Fixed
 - Required naming changes to run on current Oracle versions that now also have json support.
-- Fixed an error when converting \f and \r.
+- Fixed an error when converting `\f` and `\r`.
 
 
 ## [0.4.1] - 2016-12-22

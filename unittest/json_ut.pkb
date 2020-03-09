@@ -1,8 +1,6 @@
 CREATE OR REPLACE
 PACKAGE BODY json_UT IS
 
---	$Id: json_ut.pkb 52788 2017-12-22 14:03:41Z doberkofler $
-
 ----------------------------------------------------------
 --	PRIVATE TYPES
 ----------------------------------------------------------
@@ -1360,6 +1358,63 @@ BEGIN
 END UT_BigObject;
 
 ----------------------------------------------------------
+--	UT_PrettyOutput (private)
+--
+PROCEDURE UT_PrettyOutput
+IS
+	aOldOptions	json_utils.outputOptionsType	:=	json_utils.get_options();
+	aOptions	json_utils.outputOptionsType	:=	json_utils.get_default_options();
+
+	aObject1	jsonObject						:=	jsonObject();
+	aObject2	jsonObject						:=	jsonObject();
+	aArray		jsonArray						:=	jsonArray();
+
+	aLob		CLOB							:=	empty_clob();
+
+	aResult		CLOB							:=	'{
+	"o1": {
+		"a1": [
+			1,
+			2,
+			3
+		],
+		"a2": [
+			1,
+			2,
+			3
+		]
+	}
+}';
+BEGIN
+	UT_util.module('UT_PrettyOutput');
+
+	-- set pretty output
+	aOptions.Pretty := TRUE;
+	json_utils.set_options(aOptions);
+
+	-- allocate clob
+	dbms_lob.createtemporary(aLob, TRUE);
+
+	-- create object
+	aArray.append(1);
+	aArray.append(2);
+	aArray.append(3);
+	aObject2.put('a1', aArray.to_jsonValue());
+	aObject2.put('a2', aArray.to_jsonValue());
+	aObject1.put('o1', aObject2.to_jsonValue());
+
+	-- validate output
+	aObject1.to_clob(theLobBuf=>aLob);
+	UT_util.eqLOB(theTitle=>'pretty', theComputed=>aLob, theExpected=>aResult, theNullOK=>FALSE);
+
+	-- free temporary CLOB
+	dbms_lob.freetemporary(aLob);
+
+	-- restore options
+	json_utils.set_options(aOldOptions);
+END UT_PrettyOutput;
+
+----------------------------------------------------------
 --	UT_ParseBasic (private)
 --
 PROCEDURE UT_ParseBasic
@@ -1719,6 +1774,30 @@ BEGIN
 END UT_Debug;
 
 ----------------------------------------------------------
+--	getJSON
+--
+PROCEDURE getJSON(theCount IN NUMBER)
+IS
+	aObject			jsonObject	:=	jsonObject();
+	aArray			jsonArray	:=	jsonArray();
+BEGIN
+	UT_util.module('getJSON');
+
+	--	create subobject
+	aObject.put('string', 'this is a string value');
+	aObject.put('number', 47.11);
+	aObject.put('boolean', TRUE);
+
+	--	create object
+	FOR i IN 1 .. theCount LOOP
+		aArray.append(aObject);
+	END LOOP;
+
+	--	output array
+	aArray.htp();
+END getJSON;
+
+----------------------------------------------------------
 --	checkNode (private) 
 --
 PROCEDURE checkNode(theTitle IN VARCHAR2 DEFAULT NULL, theNodes IN jsonNodes, theNodeID IN NUMBER, theType IN VARCHAR2, theName IN VARCHAR2 DEFAULT NULL, theString IN VARCHAR2 DEFAULT NULL, theNumber IN NUMBER DEFAULT NULL, theDate IN DATE DEFAULT NULL, theParent IN NUMBER DEFAULT NULL, theNext IN NUMBER DEFAULT NULL, theSub IN NUMBER DEFAULT NULL)
@@ -1836,6 +1915,7 @@ BEGIN
 	UT_DeepRecursion;
 	UT_ComplexObject;
 	UT_BigObject;
+	UT_PrettyOutput;
 	UT_ParseBasic;
 	UT_ParseSimple;
 	UT_ParseComplex;

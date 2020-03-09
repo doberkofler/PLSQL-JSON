@@ -236,12 +236,13 @@ END to_jsonValue;
 --
 MEMBER PROCEDURE to_clob(SELF IN jsonObject, theLobBuf IN OUT NOCOPY CLOB, theEraseLob BOOLEAN DEFAULT TRUE)
 IS
-	aStrBuf	VARCHAR2(32767);
+	aIndentation    INTEGER			:= 0;
+	aStrBuf			VARCHAR2(32767);
 BEGIN
 	IF (theEraseLob) THEN
 		json_utils.erase_clob(theLobBuf);
 	END IF;
-	json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
+	json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST, theIndentation=>aIndentation);
 END to_clob;
 
 ----------------------------------------------------------
@@ -249,11 +250,12 @@ END to_clob;
 --
 MEMBER FUNCTION to_text(SELF IN jsonObject) RETURN VARCHAR2
 IS
-	aStrBuf	VARCHAR2(32767);
-	aLobLoc	CLOB;
+	aIndentation    INTEGER			:= 0;
+	aStrBuf			VARCHAR2(32767);
+	aLobLoc			CLOB;
 BEGIN
 	dbms_lob.createtemporary(lob_loc=>aLobLoc, cache=>TRUE, dur=>dbms_lob.session);
-	json_utils.object_to_clob(theLobBuf=>aLobLoc, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST);
+	json_utils.object_to_clob(theLobBuf=>aLobLoc, theStrBuf=>aStrBuf, theNodes=>SELF.nodes, theNodeID=>SELF.nodes.FIRST, theIndentation=>aIndentation);
 	aStrBuf := dbms_lob.substr(aLobLoc, 32767, 1);
 	dbms_lob.freetemporary(lob_loc=>aLobLoc);
 
