@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [0.7.0] - 2020-03-09
 
 ### Changed
-- Added output configuration option `newline_char` for the end of line style and `indentation_char` for the identation style.
+- Added output configuration option `newline_char` for the end of line style and `indentation_char` for the indentation style.
 
 
 ## [0.6.0] - 2020-03-09
