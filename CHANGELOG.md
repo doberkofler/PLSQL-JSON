@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 
+## [0.7.1] - 2020-03-11
+
+### Fixed
+- Fixed an alignment problem in the pretty output of json.
+
+
 ## [0.7.0] - 2020-03-09
 
 ### Changed

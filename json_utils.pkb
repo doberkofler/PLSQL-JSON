@@ -551,6 +551,9 @@ BEGIN
 
 		PRAGMA INLINE (add_string, 'YES');
 		json_utils.add_string(theLobBuf, theStrBuf, aName);
+	ELSE
+		PRAGMA INLINE (add_string, 'YES');
+		json_utils.add_string(theLobBuf, theStrBuf, GAP);
 	END IF;
 
 	--	Add the property value
@@ -558,15 +561,15 @@ BEGIN
 
 	WHEN json_utils.NODE_TYPE_NULL THEN
 		PRAGMA INLINE (add_string, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || 'null');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'null');
 
 	WHEN json_utils.NODE_TYPE_STRING THEN
 		PRAGMA INLINE (escape, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"' || escape(theString=>aNode.str, theAsciiOutput=>outputOptions.ascii_output, theEscapeSolitus=>outputOptions.escape_solitus) || '"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"' || escape(theString=>aNode.str, theAsciiOutput=>outputOptions.ascii_output, theEscapeSolitus=>outputOptions.escape_solitus) || '"');
 
 	WHEN json_utils.NODE_TYPE_LOB THEN
 		PRAGMA INLINE (add_string, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"');
 		PRAGMA INLINE (escapeLOB, 'YES');
 		escapeLOB(theInputLob=>aNode.lob, theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theAsciiOutput=>outputOptions.ascii_output, theEscapeSolitus=>outputOptions.escape_solitus);
 		PRAGMA INLINE (add_string, 'YES');
@@ -574,14 +577,14 @@ BEGIN
 
 	WHEN json_utils.NODE_TYPE_NUMBER THEN
 		PRAGMA INLINE (number_to_json, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || number_to_json(aNode.num));
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>number_to_json(aNode.num));
 
 	WHEN json_utils.NODE_TYPE_DATE THEN
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || '"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"');
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>'"' || TO_CHAR(aNode.dat, 'FXYYYY-MM-DD"T"HH24:MI:SS') || '"');
 
 	WHEN json_utils.NODE_TYPE_BOOLEAN THEN
 		PRAGMA INLINE (boolean_to_json, 'YES');
-		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>GAP || boolean_to_json(aNode.num));
+		json_utils.add_string(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theValue=>boolean_to_json(aNode.num));
 
 	WHEN json_utils.NODE_TYPE_OBJECT THEN
 		json_utils.object_to_clob(theLobBuf=>theLobBuf, theStrBuf=>theStrBuf, theNodes=>theNodes, theNodeID=>theNodes(theNodeID).sub, theIndentation=>theIndentation, theFlushToLOB=>FALSE);
