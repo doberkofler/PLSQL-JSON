@@ -1367,6 +1367,7 @@ IS
 
 	aObject1	jsonObject						:=	jsonObject();
 	aObject2	jsonObject						:=	jsonObject();
+	aObject3	jsonObject						:=	jsonObject();
 	aArray		jsonArray						:=	jsonArray();
 
 	aLob		CLOB							:=	empty_clob();
@@ -1378,33 +1379,33 @@ BEGIN
 	aOptions.Pretty := TRUE;
 	json_utils.set_options(aOptions);
 
+
 	-- result
 	aResult :=
 		'{'||aOptions.newline_char||
-		aOptions.indentation_char||'"o1": {'||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||'"a1": ['||aOptions.newline_char||
+		aOptions.indentation_char||'"o": {'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||'"a": ['||aOptions.newline_char||
 		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'1,'||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'2,'||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'3'||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||'],'||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||'"a2": ['||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'1,'||aOptions.newline_char||
-		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'2,'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'{'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'"e": "1"'||aOptions.newline_char||
+		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'},'||aOptions.newline_char||
 		aOptions.indentation_char||aOptions.indentation_char||aOptions.indentation_char||'3'||aOptions.newline_char||
 		aOptions.indentation_char||aOptions.indentation_char||']'||aOptions.newline_char||
-		aOptions.indentation_char||'}'||aOptions.newline_char||
+		aOptions.indentation_char||'},'||aOptions.newline_char||
+		aOptions.indentation_char||'"string": "string"'||aOptions.newline_char||
 		'}';
 
 	-- allocate clob
 	dbms_lob.createtemporary(aLob, TRUE);
 
 	-- create object
+	aObject3.put('e', '1');
 	aArray.append(1);
-	aArray.append(2);
+	aArray.append(aObject3);
 	aArray.append(3);
-	aObject2.put('a1', aArray.to_jsonValue());
-	aObject2.put('a2', aArray.to_jsonValue());
-	aObject1.put('o1', aObject2.to_jsonValue());
+	aObject2.put('a', aArray.to_jsonValue());
+	aObject1.put('o', aObject2.to_jsonValue());
+	aObject1.put('string', 'string');
 
 	-- validate output
 	aObject1.to_clob(theLobBuf=>aLob);
